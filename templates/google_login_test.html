@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login Test - Auth Service</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .login-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+            padding: 20px 0;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            width: 100%;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .user-info {
+            display: none;
+            width: 100%;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .user-info h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .user-detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .user-detail:last-child {
+            border-bottom: none;
+        }
+        
+        .user-detail label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .user-detail span {
+            color: #333;
+        }
+        
+        .profile-form {
+            display: none;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .profile-form h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            margin: 20px 0;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .config-warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .config-warning strong {
+            display: block;
+            margin-bottom: 10px;
+        }
+        
+        .config-warning code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Google Login Test</h1>
+        <p class="subtitle">Auth Service - Social Login Demo</p>
+        
+        <div class="config-warning">
+            <strong>⚠️ Konfiguration erforderlich:</strong>
+            Trage deine <code>GOOGLE_CLIENT_ID</code> unten im HTML ein (Zeile ~280).<br>
+            Siehe <a href="GOOGLE_SETUP.md" target="_blank">GOOGLE_SETUP.md</a> für Details.
+        </div>
+        
+        <div class="login-section">
+            <!-- Google Sign-In Button wird hier eingefügt -->
+            <div id="g_id_onload"
+                 data-client_id="DEINE_GOOGLE_CLIENT_ID_HIER"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="signin_with"
+                 data-size="large"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Anmeldung läuft...</p>
+        </div>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="user-info" id="userInfo">
+            <h3>✅ Erfolgreich angemeldet!</h3>
+            <div id="userDetails"></div>
+        </div>
+        
+        <div class="profile-form" id="profileForm">
+            <h3>📝 Bitte vervollständige dein Profil</h3>
+            <form id="completeProfileForm">
+                <input type="hidden" id="websiteId" value="">
+                <div id="formFields"></div>
+                <button type="submit" class="btn btn-primary">Profil speichern</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:8000/api/accounts';
+        let accessToken = null;
+        let currentWebsiteId = null;
+
+        // Status anzeigen
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        // Loading anzeigen
+        function setLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Google Credential Response Handler
+        async function handleCredentialResponse(response) {
+            try {
+                setLoading(true);
+                
+                // Google JWT Token dekodieren
+                const googleToken = response.credential;
+                const payload = JSON.parse(atob(googleToken.split('.')[1]));
+                
+                console.log('🔵 Google Payload:', payload);
+                
+                // An Auth Service senden
+                const result = await fetch(`${API_BASE_URL}/social-login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        provider: 'google',
+                        provider_user_id: payload.sub,
+                        email: payload.email,
+                        first_name: payload.given_name || '',
+                        last_name: payload.family_name || '',
+                        avatar_url: payload.picture || ''
+                    })
+                });
+
+                const data = await result.json();
+                console.log('🟢 Auth Service Response:', data);
+
+                if (data.tokens) {
+                    accessToken = data.tokens.access;
+                    localStorage.setItem('access_token', accessToken);
+                    
+                    showStatus(data.message || 'Erfolgreich angemeldet!', 'success');
+                    displayUserInfo(data.user);
+                    
+                    // Prüfe ob Profil vollständig ist (für Demo nehmen wir eine Test-Website)
+                    if (!data.profile_completed) {
+                        showStatus('Profil unvollständig. Hole benötigte Felder...', 'info');
+                        // In einer echten App würdest du hier die Website-ID vom User fragen
+                        // oder aus dem Context holen
+                        await checkProfileCompletion();
+                    } else {
+                        showStatus('✅ Login erfolgreich! Profil vollständig.', 'success');
+                    }
+                } else {
+                    showStatus('Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+                }
+            } catch (error) {
+                console.error('❌ Fehler:', error);
+                showStatus('Login fehlgeschlagen: ' + error.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Benutzerinformationen anzeigen
+        function displayUserInfo(user) {
+            const userInfoEl = document.getElementById('userInfo');
+            const userDetailsEl = document.getElementById('userDetails');
+            
+            userDetailsEl.innerHTML = `
+                <div class="user-detail">
+                    <label>Email:</label>
+                    <span>${user.email}</span>
+                </div>
+                <div class="user-detail">
+                    <label>Username:</label>
+                    <span>${user.username}</span>
+                </div>
+                <div class="user-detail">
+                    <label>Name:</label>
+                    <span>${user.first_name} ${user.last_name}</span>
+                </div>
+                <div class="user-detail">
+                    <label>Profil vollständig:</label>
+                    <span>${user.profile_completed ? '✅ Ja' : '❌ Nein'}</span>
+                </div>
+            `;
+            
+            userInfoEl.style.display = 'block';
+        }
+
+        // Profil-Vollständigkeit prüfen
+        async function checkProfileCompletion(websiteId = null) {
+            if (!websiteId) {
+                // Für Demo: Hole die erste verfügbare Website
+                const websites = await getWebsites();
+                if (websites.length > 0) {
+                    websiteId = websites[0].id;
+                    currentWebsiteId = websiteId;
+                } else {
+                    showStatus('ℹ️ Keine Website konfiguriert. Erstelle eine im Admin-Panel.', 'info');
+                    return;
+                }
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/check-profile-completion/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ website_id: websiteId })
+                });
+                
+                const data = await response.json();
+                console.log('📋 Profile Completion Status:', data);
+                
+                if (!data.profile_completed && data.missing_fields.length > 0) {
+                    showCompleteProfileForm(data.missing_fields, websiteId);
+                }
+            } catch (error) {
+                console.error('Fehler beim Prüfen der Profil-Vollständigkeit:', error);
+            }
+        }
+
+        // Websites abrufen
+        async function getWebsites() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/websites/`, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+                const data = await response.json();
+                return data.results || data || [];
+            } catch (error) {
+                console.error('Fehler beim Abrufen der Websites:', error);
+                return [];
+            }
+        }
+
+        // Profil-Vervollständigung Formular anzeigen
+        function showCompleteProfileForm(missingFields, websiteId) {
+            const formFieldsEl = document.getElementById('formFields');
+            document.getElementById('websiteId').value = websiteId;
+            
+            const fieldLabels = {
+                phone: 'Telefonnummer',
+                street: 'Straße',
+                street_number: 'Hausnummer',
+                city: 'Stadt',
+                postal_code: 'PLZ',
+                country: 'Land',
+                date_of_birth: 'Geburtsdatum',
+                company: 'Firma'
+            };
+            
+            const fieldTypes = {
+                date_of_birth: 'date',
+                phone: 'tel'
+            };
+            
+            formFieldsEl.innerHTML = missingFields.map(field => `
+                <div class="form-group">
+                    <label for="${field}">${fieldLabels[field] || field}:</label>
+                    <input 
+                        type="${fieldTypes[field] || 'text'}" 
+                        id="${field}" 
+                        name="${field}" 
+                        required
+                        placeholder="${fieldLabels[field] || field}"
+                    >
+                </div>
+            `).join('');
+            
+            document.getElementById('profileForm').style.display = 'block';
+            showStatus('⚠️ Bitte vervollständige dein Profil:', 'info');
+        }
+
+        // Profil vervollständigen
+        document.getElementById('completeProfileForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                website_id: document.getElementById('websiteId').value
+            };
+            
+            for (let [key, value] of formData.entries()) {
+                if (key !== 'websiteId') {
+                    data[key] = value;
+                }
+            }
+            
+            try {
+                setLoading(true);
+                
+                const response = await fetch(`${API_BASE_URL}/complete-profile/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showStatus('✅ Profil erfolgreich vervollständigt!', 'success');
+                    document.getElementById('profileForm').style.display = 'none';
+                    displayUserInfo(result.user);
+                } else {
+                    showStatus('Fehler: ' + (result.error || 'Unbekannter Fehler'), 'error');
+                }
+            } catch (error) {
+                console.error('Fehler beim Vervollständigen des Profils:', error);
+                showStatus('Fehler beim Speichern: ' + error.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Beim Laden prüfen ob bereits eingeloggt
+        window.onload = () => {
+            const savedToken = localStorage.getItem('access_token');
+            if (savedToken) {
+                accessToken = savedToken;
+                console.log('ℹ️ Gespeicherter Token gefunden');
+            }
+        };
+    </script>
+</body>
+</html>

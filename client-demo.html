@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Service - Client Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            margin-bottom: -2px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+        
+        .user-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .info-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 Auth Service - Client Demo</h1>
+            <p>Zentrale Authentifizierung & Autorisierung</p>
+        </div>
+
+        <div class="card">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('login')">Login</button>
+                <button class="tab" onclick="switchTab('register')">Registrieren</button>
+                <button class="tab" onclick="switchTab('profile')">Profil</button>
+                <button class="tab" onclick="switchTab('permissions')">Berechtigungen</button>
+            </div>
+
+            <!-- Login Tab -->
+            <div id="login" class="tab-content active">
+                <h2>Einloggen</h2>
+                <form onsubmit="login(event)">
+                    <div class="form-group">
+                        <label>E-Mail</label>
+                        <input type="email" id="login-email" required value="admin@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Passwort</label>
+                        <input type="password" id="login-password" required value="admin123">
+                    </div>
+                    <button type="submit">Einloggen</button>
+                </form>
+                <div id="login-status"></div>
+            </div>
+
+            <!-- Register Tab -->
+            <div id="register" class="tab-content">
+                <h2>Neuen Account erstellen</h2>
+                <form onsubmit="register(event)">
+                    <div class="form-group">
+                        <label>E-Mail</label>
+                        <input type="email" id="register-email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Benutzername</label>
+                        <input type="text" id="register-username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Vorname</label>
+                        <input type="text" id="register-firstname">
+                    </div>
+                    <div class="form-group">
+                        <label>Nachname</label>
+                        <input type="text" id="register-lastname">
+                    </div>
+                    <div class="form-group">
+                        <label>Passwort</label>
+                        <input type="password" id="register-password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Passwort bestätigen</label>
+                        <input type="password" id="register-password2" required>
+                    </div>
+                    <button type="submit">Registrieren</button>
+                </form>
+                <div id="register-status"></div>
+            </div>
+
+            <!-- Profile Tab -->
+            <div id="profile" class="tab-content">
+                <h2>Mein Profil</h2>
+                <button onclick="loadProfile()">Profil laden</button>
+                <div id="profile-status"></div>
+                <div id="profile-data"></div>
+            </div>
+
+            <!-- Permissions Tab -->
+            <div id="permissions" class="tab-content">
+                <h2>Berechtigungen prüfen</h2>
+                
+                <h3>Alle Berechtigungen laden</h3>
+                <div class="form-group">
+                    <label>Website ID (optional)</label>
+                    <input type="text" id="check-website-id" placeholder="UUID der Website">
+                </div>
+                <button onclick="checkAllPermissions()">Berechtigungen laden</button>
+                
+                <h3 style="margin-top: 30px;">Spezifische Berechtigung prüfen</h3>
+                <div class="form-group">
+                    <label>Permission Codename</label>
+                    <input type="text" id="permission-codename" placeholder="z.B. view_reports">
+                </div>
+                <div class="form-group">
+                    <label>Website ID (optional)</label>
+                    <input type="text" id="specific-website-id" placeholder="UUID der Website">
+                </div>
+                <button onclick="checkSpecificPermission()">Prüfen</button>
+                
+                <div id="permissions-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function showStatus(elementId, message, type = 'info', data = null) {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = message;
+            
+            if (data) {
+                statusDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            }
+        }
+        
+        async function login(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/accounts/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('access_token', data.access);
+                    localStorage.setItem('refresh_token', data.refresh);
+                    showStatus('login-status', '✅ Erfolgreich eingeloggt!', 'success', data);
+                } else {
+                    showStatus('login-status', '❌ Login fehlgeschlagen', 'error', data);
+                }
+            } catch (error) {
+                showStatus('login-status', '❌ Fehler: ' + error.message, 'error');
+            }
+        }
+        
+        async function register(event) {
+            event.preventDefault();
+            
+            const email = document.getElementById('register-email').value;
+            const username = document.getElementById('register-username').value;
+            const first_name = document.getElementById('register-firstname').value;
+            const last_name = document.getElementById('register-lastname').value;
+            const password = document.getElementById('register-password').value;
+            const password2 = document.getElementById('register-password2').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/accounts/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email,
+                        username,
+                        first_name,
+                        last_name,
+                        password,
+                        password2,
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    localStorage.setItem('access_token', data.tokens.access);
+                    localStorage.setItem('refresh_token', data.tokens.refresh);
+                    showStatus('register-status', '✅ Erfolgreich registriert!', 'success', data);
+                } else {
+                    showStatus('register-status', '❌ Registrierung fehlgeschlagen', 'error', data);
+                }
+            } catch (error) {
+                showStatus('register-status', '❌ Fehler: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadProfile() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                showStatus('profile-status', '❌ Bitte erst einloggen', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/accounts/profile/`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('profile-status', '✅ Profil geladen', 'success');
+                    
+                    const profileHtml = `
+                        <div class="user-info">
+                            <div class="info-item">
+                                <div class="info-label">E-Mail</div>
+                                <div class="info-value">${data.email}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Benutzername</div>
+                                <div class="info-value">${data.username}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Name</div>
+                                <div class="info-value">${data.full_name || '-'}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Status</div>
+                                <div class="info-value">${data.is_active ? '✅ Aktiv' : '❌ Inaktiv'}</div>
+                            </div>
+                        </div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    
+                    document.getElementById('profile-data').innerHTML = profileHtml;
+                } else {
+                    showStatus('profile-status', '❌ Fehler beim Laden', 'error', data);
+                }
+            } catch (error) {
+                showStatus('profile-status', '❌ Fehler: ' + error.message, 'error');
+            }
+        }
+        
+        async function checkAllPermissions() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                showStatus('permissions-status', '❌ Bitte erst einloggen', 'error');
+                return;
+            }
+            
+            const websiteId = document.getElementById('check-website-id').value;
+            let url = `${API_BASE}/api/permissions/check/me/`;
+            
+            if (websiteId) {
+                url += `?website_id=${websiteId}`;
+            }
+            
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('permissions-status', '✅ Berechtigungen geladen', 'success', data);
+                } else {
+                    showStatus('permissions-status', '❌ Fehler beim Laden', 'error', data);
+                }
+            } catch (error) {
+                showStatus('permissions-status', '❌ Fehler: ' + error.message, 'error');
+            }
+        }
+        
+        async function checkSpecificPermission() {
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                showStatus('permissions-status', '❌ Bitte erst einloggen', 'error');
+                return;
+            }
+            
+            const codename = document.getElementById('permission-codename').value;
+            const websiteId = document.getElementById('specific-website-id').value;
+            
+            if (!codename) {
+                showStatus('permissions-status', '❌ Bitte Permission Codename eingeben', 'error');
+                return;
+            }
+            
+            const body = { permission_codename: codename };
+            if (websiteId) {
+                body.website_id = websiteId;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/permissions/check-permission/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(body),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const hasPermission = data.has_permission;
+                    const message = hasPermission 
+                        ? `✅ Berechtigung "${codename}" ist VORHANDEN`
+                        : `❌ Berechtigung "${codename}" ist NICHT vorhanden`;
+                    
+                    showStatus('permissions-status', message, hasPermission ? 'success' : 'error', data);
+                } else {
+                    showStatus('permissions-status', '❌ Fehler beim Prüfen', 'error', data);
+                }
+            } catch (error) {
+                showStatus('permissions-status', '❌ Fehler: ' + error.message, 'error');
+            }
+        }
+        
+        // Check if user is logged in on page load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('access_token');
+            if (token) {
+                showStatus('login-status', 'ℹ️ Token vorhanden. Sie sind eingeloggt.', 'info');
+            }
+        });
+    </script>
+</body>
+</html>
