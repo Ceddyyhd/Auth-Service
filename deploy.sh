@@ -1,4 +1,4 @@
-#!/bin/bash
+!/bin/bash
 
 ###############################################################################
 # Auth-Service Deployment Script für Debian 12
