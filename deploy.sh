@@ -29,6 +29,10 @@ PYTHON_VERSION="3.11"
 DB_NAME="auth_service_db"
 DB_USER="auth_service_user"
 DB_PASSWORD=$(openssl rand -base64 32)
+GITHUB_REPO="https://github.com/Ceddyyhd/Auth-Service.git"
+GITHUB_BRANCH="main"
+# GitHub Personal Access Token (WICHTIG: Diese Datei nicht public sharen!)
+GITHUB_TOKEN="XXXX"
 
 echo -e "${GREEN}╔════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║   Auth-Service Deployment für Debian 12           ║${NC}"
@@ -105,12 +109,33 @@ systemctl enable redis-server
 systemctl start redis-server
 echo -e "${GREEN}✓ Redis läuft${NC}"
 
-echo -e "${YELLOW}[7/10] Code nach $APP_DIR kopieren...${NC}"
-echo "Bitte den Code manuell nach $APP_DIR kopieren:"
-echo "  rsync -avz --exclude='venv' --exclude='*.pyc' ./ root@your-server:$APP_DIR/"
+echo -e "${YELLOW}[7/10] Code von GitHub klonen...${NC}"
 echo ""
-echo "Drücke Enter wenn der Code kopiert wurde..."
-read
+echo -e "${GREEN}Repository: $GITHUB_REPO${NC}"
+echo -e "${GREEN}Branch: $GITHUB_BRANCH${NC}"
+echo ""
+
+# Prüfe ob Verzeichnis existiert
+if [ -d "$APP_DIR/.git" ]; then
+    echo -e "${YELLOW}Repository existiert bereits. Pull wird durchgeführt...${NC}"
+    cd $APP_DIR
+    sudo -u $APP_USER git pull https://${GITHUB_TOKEN}@github.com/Ceddyyhd/Auth-Service.git $GITHUB_BRANCH
+else
+    echo -e "${YELLOW}Klone Repository...${NC}"
+    # Clone mit Token
+    sudo -u $APP_USER git clone --branch $GITHUB_BRANCH https://${GITHUB_TOKEN}@github.com/Ceddyyhd/Auth-Service.git $APP_DIR
+    
+    # Entferne Token aus Git-Config für Sicherheit
+    cd $APP_DIR
+    sudo -u $APP_USER git remote set-url origin $GITHUB_REPO
+fi
+
+# Token für spätere Updates speichern
+echo "GITHUB_TOKEN=$GITHUB_TOKEN" > /root/.auth_service_github_token
+chmod 600 /root/.auth_service_github_token
+
+echo -e "${GREEN}✓ Code von GitHub heruntergeladen${NC}"
+echo -e "${GREEN}✓ Token gespeichert für zukünftige Updates${NC}"
 
 # Wechsle zum App-User für den Rest
 echo -e "${YELLOW}[8/10] Python Virtual Environment einrichten...${NC}"
