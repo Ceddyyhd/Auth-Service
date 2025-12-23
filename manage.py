@@ -2,6 +2,10 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import pymysql
+
+# PyMySQL als MySQL-Treiber verwenden
+pymysql.install_as_MySQLdb()
 
 
 def main():
