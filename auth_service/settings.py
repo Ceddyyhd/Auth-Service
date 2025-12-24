@@ -15,7 +15,10 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS', 
+    default='localhost,127.0.0.1,auth.palmdynamicx.de,www.auth.palmdynamicx.de'
+).split(',')
 
 # Application definition
 INSTALLED_APPS = [
@@ -180,13 +183,16 @@ OAUTH2_PROVIDER = {
     'OAUTH2_BACKEND_CLASS': 'oauth2_provider.oauth2_backends.JSONOAuthLibCore',
 }
 
-# CORS Settings
+# CORS Settings - Sichere Cross-Origin-Anfragen
+# Tragen Sie hier alle Domains ein, die auf die API zugreifen dürfen
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://localhost:8080'
+    default='http://localhost:3000,http://localhost:8080,https://palmdynamicx.de,https://www.palmdynamicx.de'
 ).split(',')
 
-CORS_ALLOW_CREDENTIALS = True
+# WICHTIG: In Produktion NUR vertrauenswürdige Domains hinzufügen!
+# Niemals CORS_ALLOW_ALL_ORIGINS = True in Produktion!
+CORS_ALLOW_CREDENTIALS = True  # Erlaubt Cookies und Authorization-Header
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -259,21 +265,70 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# In production, uncomment these:
-# SECURE_SSL_REDIRECT = True
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
-# SECURE_HSTS_SECONDS = 31536000
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
+# Produktions-Sicherheitseinstellungen (über .env steuerbar)
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')  # Für Nginx/Reverse Proxy
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
+SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=0, cast=int)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=False, cast=bool)
+SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=False, cast=bool)
+
+# CSRF Trusted Origins (für POST-Requests von anderen Domains)
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default='https://auth.palmdynamicx.de,https://palmdynamicx.de,https://www.palmdynamicx.de'
+).split(',')
 
 # API Documentation
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Auth Service API',
-    'DESCRIPTION': 'Zentraler Authentifizierungs- und Autorisierungsservice',
+    'TITLE': 'PalmDynamicX Auth Service API',
+    'DESCRIPTION': '''Zentraler Authentifizierungs- und Autorisierungsservice für PalmDynamicX
+    
+    ## 🔒 Sicherheit
+    - Alle Anfragen müssen über HTTPS erfolgen (in Produktion)
+    - JWT-Tokens für Authentifizierung
+    - bcrypt Password-Hashing
+    - Rate Limiting aktiviert
+    - CORS konfiguriert für sichere Cross-Origin-Anfragen
+    
+    ## 🔑 Authentifizierung
+    Fügen Sie den Access-Token im Authorization-Header hinzu:
+    ```
+    Authorization: Bearer <ACCESS_TOKEN>
+    ```
+    
+    ## 📚 Weitere Dokumentation
+    - [Vollständige API-Referenz](https://github.com/PalmDynamicX/Auth-Service/blob/main/API_REFERENCE.md)
+    - [Sicherheits-Guide](https://github.com/PalmDynamicX/Auth-Service/blob/main/SECURITY.md)
+    - [Integration Guide](https://github.com/PalmDynamicX/Auth-Service/blob/main/WEBSITE_INTEGRATION.md)
+    ''',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+    },
+    'SERVERS': [
+        {'url': 'https://auth.palmdynamicx.de', 'description': 'Produktions-Server'},
+        {'url': 'http://localhost:8000', 'description': 'Lokale Entwicklung'},
+    ],
+    'SECURITY': [
+        {'Bearer': []}
+    ],
+    'COMPONENTS': {
+        'securitySchemes': {
+            'Bearer': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+                'description': 'JWT Access Token (Gültigkeitsdauer: 15 Minuten)'
+            }
+        }
+    },
 }
 
 # Django Allauth Settings

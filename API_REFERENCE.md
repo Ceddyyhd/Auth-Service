@@ -2,288 +2,913 @@
 
 Vollständige API-Dokumentation für den zentralen Authentication Service.
 
+## � Wichtiger Sicherheitshinweis
+
+**ALLE API-Anfragen MÜSSEN über HTTPS erfolgen!**
+
+- ✅ In Produktion: Nur HTTPS verwenden (`https://api.ihredomain.com`)
+- ⚠️ In Entwicklung: HTTP erlaubt (`http://localhost:8000`)
+- 🔐 JWT-Tokens werden verschlüsselt übertragen
+- 🛡️ Passwörter werden mit bcrypt gehasht (NIEMALS im Klartext gespeichert)
+- 📡 Sensible Daten werden nur verschlüsselt übertragen
+- 🔑 API-Keys und Tokens niemals im Client-Code hardcoden
+- 🌐 CORS ist aktiviert - nur registrierte Origins erlaubt
+
+### Sicherheits-Checkliste für Produktion:
+
+```python
+# settings.py - Produktions-Einstellungen
+DEBUG = False
+SECURE_SSL_REDIRECT = True          # Erzwinge HTTPS
+SESSION_COOKIE_SECURE = True        # Cookies nur über HTTPS
+CSRF_COOKIE_SECURE = True           # CSRF nur über HTTPS
+SECURE_HSTS_SECONDS = 31536000      # HTTP Strict Transport Security
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+```
+
 ## 📋 Inhaltsverzeichnis
 
-- [Authentifizierung](#authentifizierung)
-- [Benutzer-Verwaltung](#benutzer-verwaltung)
-- [Website-Verwaltung](#website-verwaltung)
-- [Permissions & Rollen](#permissions--rollen)
-- [Social Login](#social-login)
-- [Sessions](#sessions)
+- [🔒 Sicherheitshinweise](#wichtiger-sicherheitshinweis)
+- [🔐 Authentifizierung](#authentifizierung)
+- [👤 Benutzer-Verwaltung](#benutzer-verwaltung)
+- [🌐 Website-Verwaltung](#website-verwaltung)
+- [🔑 Permissions & Rollen](#permissions--rollen)
+- [🔗 Social Login](#social-login)
+- [📊 Sessions](#sessions)
+- [⚠️ Fehlerbehandlung](#fehlerbehandlung)
+
+## 📝 Allgemeine Request-Struktur
+
+Alle API-Anfragen folgen diesem Format:
+
+```http
+POST /api/endpoint/ HTTP/1.1
+Host: api.ihredomain.com
+Content-Type: application/json
+Authorization: Bearer <ACCESS_TOKEN>
+
+{
+  "field": "value"
+}
+```
 
 ---
 
 ## 🔐 Authentifizierung
 
-### Registrierung
+### 1. Registrierung
 
-**Endpoint:** `POST /api/accounts/register/`  
-**Berechtigung:** Keine (öffentlich)
+Erstellt einen neuen Benutzer-Account. Passwort wird automatisch mit bcrypt gehasht.
 
-```javascript
-// Request
-{
-  "email": "user@example.com",
-  "username": "user123",
-  "password": "SecurePassword123!",
-  "password_confirm": "SecurePassword123!",
-  "first_name": "Max",
-  "last_name": "Mustermann",
-  "website_id": "website-uuid",
-  
-  // Optional (je nach Website-Einstellungen):
-  "phone": "+49123456789",
-  "street": "Musterstraße",
-  "street_number": "123",
-  "city": "Berlin",
-  "postal_code": "10115",
-  "country": "Deutschland",
-  "date_of_birth": "1990-01-01",
-  "company": "Meine Firma GmbH"
-}
+**📍 Endpoint:** `POST /api/accounts/register/`  
+**🔓 Berechtigung:** Keine (öffentlich)  
+**🔒 Verschlüsselung:** HTTPS erforderlich (Produktion)
 
-// Response (201 Created)
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `email` | string | ✅ Ja | Body | E-Mail-Adresse (einzigartig) |
+| `username` | string | ✅ Ja | Body | Benutzername (einzigartig) |
+| `password` | string | ✅ Ja | Body | Min. 8 Zeichen, Sonderzeichen empfohlen |
+| `password_confirm` | string | ✅ Ja | Body | Muss mit `password` übereinstimmen |
+| `first_name` | string | ⚠️ * | Body | Vorname |
+| `last_name` | string | ⚠️ * | Body | Nachname |
+| `website_id` | UUID | ✅ Ja | Body | ID der registrierenden Website |
+| `phone` | string | ⚠️ * | Body | Telefonnummer (Format: +49...) |
+| `street` | string | ⚠️ * | Body | Straße |
+| `street_number` | string | ⚠️ * | Body | Hausnummer |
+| `city` | string | ⚠️ * | Body | Stadt |
+| `postal_code` | string | ⚠️ * | Body | Postleitzahl |
+| `country` | string | ⚠️ * | Body | Land |
+| `date_of_birth` | date | ⚠️ * | Body | Geburtsdatum (YYYY-MM-DD) |
+| `company` | string | ⚠️ * | Body | Firmenname |
+
+*⚠️ Abhängig von den Website-Einstellungen (require_first_name, require_phone, etc.)*
+
+#### ✅ Erfolgreiche Response (201 Created):
+
+```json
 {
   "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "username": "user123",
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "email": "max.mustermann@example.com",
+    "username": "maxmuster",
     "first_name": "Max",
     "last_name": "Mustermann",
-    "profile_completed": true
+    "phone": "+491234567890",
+    "city": "Berlin",
+    "postal_code": "10115",
+    "profile_completed": true,
+    "is_verified": false,
+    "is_active": true,
+    "date_joined": "2025-12-24T10:30:45.123456Z"
   },
   "tokens": {
-    "refresh": "eyJ...",
-    "access": "eyJ..."
+    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+    "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
   },
-  "message": "Benutzer erfolgreich registriert."
+  "message": "Benutzer erfolgreich registriert. Bitte verifizieren Sie Ihre E-Mail."
 }
 ```
 
-**Frontend Beispiel:**
-```javascript
-async function register(userData) {
-  const response = await fetch('http://localhost:8000/api/accounts/register/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData)
-  });
-  
-  const data = await response.json();
-  localStorage.setItem('access_token', data.tokens.access);
-  localStorage.setItem('refresh_token', data.tokens.refresh);
-  
-  return data;
-}
-```
+#### ❌ Fehler-Response (400 Bad Request):
 
----
-
-### Login
-
-**Endpoint:** `POST /api/accounts/login/`  
-**Berechtigung:** Keine (öffentlich)
-
-```javascript
-// Request
+```json
 {
-  "username": "user@example.com",  // oder username
-  "password": "SecurePassword123!"
-}
-
-// Response (200 OK)
-{
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-```
-
-**Frontend Beispiel:**
-```javascript
-async function login(email, password) {
-  const response = await fetch('http://localhost:8000/api/accounts/login/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: email, password })
-  });
-  
-  const data = await response.json();
-  localStorage.setItem('access_token', data.access);
-  localStorage.setItem('refresh_token', data.refresh);
-  
-  return data;
-}
-
-// Token verwenden
-fetch('http://localhost:8000/api/accounts/profile/', {
-  headers: {
-    'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+  "error": "Validation error",
+  "details": {
+    "email": ["Benutzer mit dieser E-Mail existiert bereits."],
+    "password": ["Passwort muss mindestens 8 Zeichen lang sein."],
+    "password_confirm": ["Passwörter stimmen nicht überein."],
+    "phone": ["Ungültiges Telefonnummern-Format."]
   }
+}
+```
+
+#### 🔒 Sicherheitshinweise:
+
+- ✅ Passwort wird **niemals** im Klartext gespeichert (bcrypt Hash)
+- ✅ E-Mail und Username müssen einzigartig sein
+- ✅ JWT-Tokens sind signiert und haben Ablaufzeit
+- ✅ Verifizierungs-E-Mail wird automatisch gesendet
+- ⚠️ **NIEMALS** Tokens in URL-Parametern übergeben
+- ⚠️ Tokens nur in Authorization-Header oder httpOnly-Cookies speichern
+
+#### 💻 Frontend-Beispiel (Secure):
+
+```javascript
+/**
+ * Sicherer Registrierungs-Flow mit Verschlüsselung
+ */
+async function secureRegister(userData) {
+  try {
+    // 🔒 HTTPS Endpoint verwenden in Produktion
+    const API_URL = process.env.NODE_ENV === 'production' 
+      ? 'https://auth.palmdynamicx.de'
+      : 'http://localhost:8000';
+    
+    const response = await fetch(`${API_URL}/api/accounts/register/`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+        // Kein Authorization-Header bei Registrierung
+      },
+      body: JSON.stringify({
+        email: userData.email,
+        username: userData.username,
+        password: userData.password,  // Wird serverseitig gehasht
+        password_confirm: userData.passwordConfirm,
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+        website_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        phone: userData.phone || null,
+        city: userData.city || null,
+        postal_code: userData.postalCode || null
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      // Fehlerbehandlung
+      throw new Error(data.error || 'Registrierung fehlgeschlagen');
+    }
+    
+    // 🔒 Tokens sicher speichern
+    // Option 1: localStorage (Einfach, aber weniger sicher)
+    localStorage.setItem('access_token', data.tokens.access);
+    localStorage.setItem('refresh_token', data.tokens.refresh);
+    
+    // Option 2: httpOnly Cookie (Sicherer) - Backend muss Cookie setzen
+    // Tokens werden automatisch bei jedem Request mitgesendet
+    
+    // ✅ Erfolg
+    return {
+      success: true,
+      user: data.user,
+      message: data.message
+    };
+    
+  } catch (error) {
+    console.error('❌ Registrierung fehlgeschlagen:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// Verwendung:
+const result = await secureRegister({
+  email: 'max@example.com',
+  username: 'maxmuster',
+  password: 'Sicher3sP@ssw0rt!',
+  passwordConfirm: 'Sicher3sP@ssw0rt!',
+  firstName: 'Max',
+  lastName: 'Mustermann',
+  phone: '+491234567890'
 });
+
+if (result.success) {
+  console.log('✅ Registrierung erfolgreich:', result.user);
+  // Weiterleitung zur Verifizierungs-Seite
+  window.location.href = '/email-verification';
+} else {
+  console.error('❌ Fehler:', result.error);
+}
 ```
 
 ---
 
-### Logout
+### 2. Login
 
-**Endpoint:** `POST /api/accounts/logout/`  
-**Berechtigung:** IsAuthenticated
+Authentifiziert einen Benutzer und gibt JWT-Tokens zurück.
 
-```javascript
-// Request
+**📍 Endpoint:** `POST /api/accounts/login/`  
+**🔓 Berechtigung:** Keine (öffentlich)  
+**🔒 Verschlüsselung:** HTTPS erforderlich (Produktion)
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `username` | string | ✅ Ja | Body | E-Mail ODER Username |
+| `password` | string | ✅ Ja | Body | Passwort (wird serverseitig validiert) |
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
 {
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-
-// Response (200 OK)
-{
-  "message": "Erfolgreich abgemeldet."
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTcwODg3MjAwMCwidXNlcl9pZCI6ImY0N2FjMTBiLTU4Y2MtNDM3Mi1hNTY3LTBlMDJiMmMzZDQ3OSJ9...",
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzA4Nzg1NjAwLCJ1c2VyX2lkIjoiZjQ3YWMxMGItNThjYy00MzcyLWE1NjctMGUwMmIyYzNkNDc5In0...",
+  "user": {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "email": "max.mustermann@example.com",
+    "username": "maxmuster",
+    "first_name": "Max",
+    "last_name": "Mustermann",
+    "is_verified": true
+  }
 }
 ```
 
-**Frontend Beispiel:**
+**JWT Token Struktur (Decoded):**
+```json
+// Access Token (Gültig 15 Minuten)
+{
+  "token_type": "access",
+  "exp": 1708785600,
+  "user_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "username": "maxmuster",
+  "email": "max@example.com"
+}
+
+// Refresh Token (Gültig 7 Tage)
+{
+  "token_type": "refresh",
+  "exp": 1708872000,
+  "user_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+}
+```
+
+#### ❌ Fehler-Response (401 Unauthorized):
+
+```json
+{
+  "detail": "Ungültige Anmeldedaten.",
+  "error_code": "invalid_credentials"
+}
+```
+
+#### 🔒 Sicherheitshinweise:
+
+- ✅ Passwort wird **nie** im Klartext gespeichert oder zurückgegeben
+- ✅ Access Token läuft nach 15 Minuten ab
+- ✅ Refresh Token läuft nach 7 Tagen ab
+- ✅ Tokens sind signiert und können nicht gefälscht werden
+- ⚠️ **NIEMALS** Tokens in Logs ausgeben
+- ⚠️ Bei mehrfachen fehlgeschlagenen Login-Versuchen: Rate Limiting aktiv
+- 🔐 IP-Adresse und User-Agent werden für Session-Tracking gespeichert
+
+#### 💻 Frontend-Beispiel (Secure):
+
 ```javascript
-async function logout() {
-  await fetch('http://localhost:8000/api/accounts/logout/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-    },
-    body: JSON.stringify({ 
-      refresh: localStorage.getItem('refresh_token') 
-    })
-  });
+/**
+ * Sicherer Login mit automatischem Token-Management
+ */
+class SecureAuthService {
+  static API_URL = process.env.NODE_ENV === 'production'
+    ? 'https://auth.palmdynamicx.de'
+    : 'http://localhost:8000';
   
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
-  window.location.href = '/login';
-}
-```
-
----
-
-### Token Refresh
-
-**Endpoint:** `POST /api/token/refresh/`  
-**Berechtigung:** Keine
-
-```javascript
-// Request
-{
-  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-
-// Response (200 OK)
-{
-  "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-}
-```
-
-**Frontend Beispiel (Axios Interceptor):**
-```javascript
-axios.interceptors.response.use(
-  response => response,
-  async error => {
-    if (error.response?.status === 401) {
-      const refreshToken = localStorage.getItem('refresh_token');
+  /**
+   * Login-Funktion mit Fehlerbehandlung
+   */
+  static async login(email, password) {
+    try {
+      const response = await fetch(`${this.API_URL}/api/accounts/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // KEIN Authorization-Header beim Login
+        },
+        body: JSON.stringify({
+          username: email,  // Kann E-Mail oder Username sein
+          password: password
+        }),
+        credentials: 'include'  // Für httpOnly Cookies
+      });
       
-      try {
-        const response = await axios.post('/api/token/refresh/', {
-          refresh: refreshToken
-        });
-        
-        localStorage.setItem('access_token', response.data.access);
-        error.config.headers['Authorization'] = `Bearer ${response.data.access}`;
-        
-        return axios(error.config);
-      } catch (refreshError) {
-        // Refresh fehlgeschlagen - Logout
-        localStorage.clear();
-        window.location.href = '/login';
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Login fehlgeschlagen');
+      }
+      
+      // 🔒 Tokens sicher speichern
+      this.setTokens(data.access, data.refresh);
+      
+      // ✅ User-Daten zurückgeben (OHNE Passwort!)
+      return {
+        success: true,
+        user: data.user,
+        tokens: {
+          access: data.access,
+          refresh: data.refresh
+        }
+      };
+      
+    } catch (error) {
+      console.error('❌ Login fehlgeschlagen:', error.message);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+  
+  /**
+   * Tokens sicher speichern
+   */
+  static setTokens(accessToken, refreshToken) {
+    // Option 1: localStorage (einfach, aber XSS-anfällig)
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+    
+    // Option 2: sessionStorage (sicherer, nur für aktuelle Session)
+    // sessionStorage.setItem('access_token', accessToken);
+    
+    // ⚠️ NIEMALS in Cookies ohne httpOnly-Flag speichern!
+  }
+  
+  /**
+   * Token aus Storage holen
+   */
+  static getAccessToken() {
+    return localStorage.getItem('access_token');
+  }
+  
+  static getRefreshToken() {
+    return localStorage.getItem('refresh_token');
+  }
+  
+  /**
+   * Prüft ob Benutzer eingeloggt ist
+   */
+  static isAuthenticated() {
+    const token = this.getAccessToken();
+    if (!token) return false;
+    
+    try {
+      // Token decodieren (nur Payload, Signatur serverseitig prüfen!)
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000;
+      
+      // Prüfen ob abgelaufen
+      return Date.now() < expirationTime;
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Authentifizierten API-Request durchführen
+   */
+  static async authenticatedFetch(endpoint, options = {}) {
+    const token = this.getAccessToken();
+    
+    if (!token) {
+      throw new Error('Nicht authentifiziert');
+    }
+    
+    // 🔒 Authorization Header hinzufügen
+    const response = await fetch(`${this.API_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...options.headers,
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`  // ✅ Token im Header
+      }
+    });
+    
+    // Auto-Refresh bei 401
+    if (response.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        // Retry mit neuem Token
+        return this.authenticatedFetch(endpoint, options);
+      } else {
+        // Logout bei fehlgeschlagenem Refresh
+        this.logout();
+        throw new Error('Session abgelaufen');
       }
     }
+    
+    return response;
+  }
+  
+  /**
+   * Access Token erneuern
+   */
+  static async refreshToken() {
+    const refreshToken = this.getRefreshToken();
+    
+    if (!refreshToken) return false;
+    
+    try {
+      const response = await fetch(`${this.API_URL}/api/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken })
+      });
+      
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      this.setTokens(data.access, refreshToken);
+      
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Logout (Tokens löschen)
+   */
+  static logout() {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    window.location.href = '/login';
+  }
+}
+
+// ✅ VERWENDUNG:
+async function handleLogin() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  
+  const result = await SecureAuthService.login(email, password);
+  
+  if (result.success) {
+    console.log('✅ Login erfolgreich:', result.user);
+    // Weiterleitung zum Dashboard
+    window.location.href = '/dashboard';
+  } else {
+    console.error('❌ Login fehlgeschlagen:', result.error);
+    alert(result.error);
+  }
+}
+
+// Geschützten Endpoint aufrufen:
+const response = await SecureAuthService.authenticatedFetch('/api/accounts/profile/');
+const userData = await response.json();
+```
+
+---
+
+### 3. Logout
+
+Meldet den Benutzer ab und invalidiert den Refresh-Token.
+
+**📍 Endpoint:** `POST /api/accounts/logout/`  
+**🔒 Berechtigung:** IsAuthenticated  
+**🔑 Header:** `Authorization: Bearer <ACCESS_TOKEN>`
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `refresh` | string (JWT) | ✅ Ja | Body | Refresh Token zum Invalidieren |
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
+{
+  "message": "Erfolgreich abgemeldet.",
+  "detail": "Refresh token wurde invalidiert."
+}
+```
+
+#### 💻 Frontend-Beispiel:
+
+```javascript
+async function secureLogout() {
+  try {
+    const refreshToken = localStorage.getItem('refresh_token');
+    const accessToken = localStorage.getItem('access_token');
+    
+    // Refresh-Token serverseitig invalidieren
+    await fetch('https://api.ihredomain.com/api/accounts/logout/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`  // ✅ Access Token im Header
+      },
+      body: JSON.stringify({
+        refresh: refreshToken  // ✅ Refresh Token im Body
+      })
+    });
+    
+    // ✅ Tokens lokal löschen
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    sessionStorage.clear();
+    
+    // ✅ Weiterleitung
+    window.location.href = '/login';
+    
+  } catch (error) {
+    console.error('Logout-Fehler:', error);
+    // Auch bei Fehler Tokens löschen
+    localStorage.clear();
+    window.location.href = '/login';
+  }
+}
+```
+
+---
+
+### 4. Token Refresh
+
+Erneuert einen abgelaufenen Access-Token mit einem gültigen Refresh-Token.
+
+**📍 Endpoint:** `POST /api/token/refresh/`  
+**🔓 Berechtigung:** Keine  
+**🔒 Verschlüsselung:** HTTPS erforderlich
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `refresh` | string (JWT) | ✅ Ja | Body | Gültiger Refresh Token |
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzA4Nzg2NTAwLCJ1c2VyX2lkIjoiZjQ3YWMxMGItNThjYy00MzcyLWE1NjctMGUwMmIyYzNkNDc5In0..."
+}
+```
+
+#### ❌ Fehler-Response (401 Unauthorized):
+
+```json
+{
+  "detail": "Token ist ungültig oder abgelaufen",
+  "code": "token_not_valid"
+}
+```
+
+#### 🔒 Sicherheitshinweise:
+
+- ✅ Refresh Token wird **nicht** erneuert (bleibt gleich)
+- ✅ Neuer Access Token ist 15 Minuten gültig
+- ⚠️ Nach 7 Tagen muss Benutzer sich neu einloggen
+- ⚠️ Bei gestohlenen Refresh-Tokens: Sofort alle Sessions invalidieren
+
+#### 💻 Frontend-Beispiel (Axios Interceptor):
+
+```javascript
+import axios from 'axios';
+
+// API-Client mit Auto-Refresh
+const apiClient = axios.create({
+  baseURL: 'https://api.ihredomain.com',
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Request-Interceptor: Token hinzufügen
+apiClient.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => Promise.reject(error)
+);
+
+// Response-Interceptor: Auto-Refresh bei 401
+apiClient.interceptors.response.use(
+  response => response,
+  async error => {
+    const originalRequest = error.config;
+    
+    // Wenn 401 und noch nicht versucht zu refreshen
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        
+        // Token erneuern
+        const response = await axios.post(
+          'https://api.ihredomain.com/api/token/refresh/',
+          { refresh: refreshToken }
+        );
+        
+        const newAccessToken = response.data.access;
+        
+        // Neuen Token speichern
+        localStorage.setItem('access_token', newAccessToken);
+        
+        // Original-Request mit neuem Token wiederholen
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return apiClient(originalRequest);
+        
+      } catch (refreshError) {
+        // Refresh fehlgeschlagen - Logout
+        console.error('❌ Token-Refresh fehlgeschlagen:', refreshError);
+        localStorage.clear();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
+
+// ✅ VERWENDUNG:
+// Alle Requests nutzen automatisch Token-Refresh
+try {
+  const response = await apiClient.get('/api/accounts/profile/');
+  console.log('Profil:', response.data);
+} catch (error) {
+  console.error('Fehler:', error);
+}
+```
+
+---
+
+### 5. Passwort zurücksetzen (Anfrage)
+
+Sendet eine E-Mail mit einem Passwort-Reset-Link.
+
+**📍 Endpoint:** `POST /api/accounts/password-reset/`  
+**🔓 Berechtigung:** Keine (öffentlich)
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `email` | string | ✅ Ja | Body | E-Mail-Adresse des Accounts |
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
+{
+  "message": "Falls ein Account mit dieser E-Mail existiert, wurde ein Reset-Link gesendet.",
+  "email_sent": true
+}
+```
+
+**Hinweis:** Aus Sicherheitsgründen wird immer die gleiche Nachricht zurückgegeben, unabhängig davon ob der Account existiert.
+
+#### 🔒 Sicherheitshinweise:
+
+- ✅ Rate Limiting: Max 3 Anfragen pro Stunde pro IP
+- ✅ Token läuft nach 1 Stunde ab
+- ✅ Token kann nur einmal verwendet werden
+- ⚠️ Gibt nicht preis ob E-Mail existiert (Security by Obscurity)
+
+#### E-Mail-Inhalt:
+
+```
+Betreff: Passwort zurücksetzen
+
+Hallo,
+
+Sie haben eine Anfrage zum Zurücksetzen Ihres Passworts gestellt.
+
+Klicken Sie auf den folgenden Link (gültig für 1 Stunde):
+https://ihredomain.com/reset-password?token=abc123...
+
+Falls Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail.
+
+Viele Grüße
+Ihr Auth-Service Team
+```
+
+---
+
+### 6. Passwort zurücksetzen (Bestätigung)
+
+Setzt ein neues Passwort mit einem gültigen Reset-Token.
+
+**📍 Endpoint:** `POST /api/accounts/password-reset-confirm/`  
+**🔓 Berechtigung:** Keine (öffentlich)
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `token` | string | ✅ Ja | Body | Reset-Token aus E-Mail |
+| `password` | string | ✅ Ja | Body | Neues Passwort (min. 8 Zeichen) |
+| `password_confirm` | string | ✅ Ja | Body | Passwort-Bestätigung |
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
+{
+  "message": "Passwort erfolgreich geändert. Sie können sich jetzt anmelden.",
+  "password_changed": true
+}
+```
+
+#### ❌ Fehler-Response (400 Bad Request):
+
+```json
+{
+  "error": "Token ist ungültig oder abgelaufen",
+  "token_valid": false
+}
 ```
 
 ---
 
 ## 👤 Benutzer-Verwaltung
 
-### Profil abrufen
+### 7. Profil abrufen
 
-**Endpoint:** `GET /api/accounts/profile/`  
-**Berechtigung:** IsAuthenticated
+Gibt das komplette Benutzerprofil zurück (ohne Passwort!).
 
-```javascript
-// Response (200 OK)
+**📍 Endpoint:** `GET /api/accounts/profile/`  
+**🔒 Berechtigung:** IsAuthenticated  
+**🔑 Header:** `Authorization: Bearer <ACCESS_TOKEN>`
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
 {
-  "id": "uuid",
-  "email": "user@example.com",
-  "username": "user123",
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "email": "max.mustermann@example.com",
+  "username": "maxmuster",
   "first_name": "Max",
   "last_name": "Mustermann",
-  "phone": "+49123456789",
+  "phone": "+491234567890",
   "street": "Musterstraße",
-  "street_number": "123",
+  "street_number": "42",
   "city": "Berlin",
   "postal_code": "10115",
   "country": "Deutschland",
-  "date_of_birth": "1990-01-01",
+  "date_of_birth": "1990-01-15",
   "company": "Meine Firma GmbH",
   "profile_completed": true,
   "is_verified": true,
   "is_active": true,
-  "date_joined": "2025-01-01T10:00:00Z"
+  "is_staff": false,
+  "is_superuser": false,
+  "date_joined": "2025-01-01T10:00:00.000000Z",
+  "last_login": "2025-12-24T08:30:15.123456Z",
+  "roles": [
+    {
+      "id": "role-uuid",
+      "name": "Editor",
+      "scope": "local",
+      "website": "Meine Website"
+    }
+  ],
+  "permissions_count": 12
+}
+```
+
+**Hinweis:** Passwort wird **NIEMALS** zurückgegeben!
+
+#### 💻 Frontend-Beispiel:
+
+```javascript
+async function loadUserProfile() {
+  try {
+    const response = await SecureAuthService.authenticatedFetch('/api/accounts/profile/');
+    const user = await response.json();
+    
+    // Profil anzeigen
+    document.getElementById('userName').textContent = user.first_name + ' ' + user.last_name;
+    document.getElementById('userEmail').textContent = user.email;
+    
+    // Verifizierungs-Status prüfen
+    if (!user.is_verified) {
+      showEmailVerificationBanner();
+    }
+    
+    return user;
+  } catch (error) {
+    console.error('Profil laden fehlgeschlagen:', error);
+  }
 }
 ```
 
 ---
 
-### Profil aktualisieren
+### 8. Profil aktualisieren
 
-**Endpoint:** `PATCH /api/accounts/profile/`  
-**Berechtigung:** IsAuthenticated
+Aktualisiert Benutzer-Profilfelder (Passwort ausgenommen).
 
-```javascript
-// Request
+**📍 Endpoint:** `PATCH /api/accounts/profile/`  
+**🔒 Berechtigung:** IsAuthenticated  
+**🔑 Header:** `Authorization: Bearer <ACCESS_TOKEN>`
+
+#### Request Body (application/json):
+
+| Feld | Typ | Pflicht | Wo eintragen | Beschreibung |
+|------|-----|---------|--------------|--------------|
+| `first_name` | string | ❌ Nein | Body | Vorname |
+| `last_name` | string | ❌ Nein | Body | Nachname |
+| `phone` | string | ❌ Nein | Body | Telefonnummer |
+| `city` | string | ❌ Nein | Body | Stadt |
+| ... | ... | ❌ Nein | Body | Beliebige Profilfelder |
+
+**Hinweis:** Nur gesendete Felder werden aktualisiert (PATCH-Semantik).
+
+#### ✅ Erfolgreiche Response (200 OK):
+
+```json
 {
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
   "first_name": "Maximilian",
-  "phone": "+49987654321",
-  "city": "München"
-}
-
-// Response (200 OK)
-{
-  "id": "uuid",
-  "first_name": "Maximilian",
-  "phone": "+49987654321",
+  "phone": "+491234567890",
   "city": "München",
-  ...
+  "updated_at": "2025-12-24T10:45:30.123456Z"
 }
 ```
 
----
+#### ❌ Fehler-Response (400 Bad Request):
 
-### Passwort ändern
+```json
+{
+  "error": "Validation error",
+  "details": {
+    "phone": ["Ungültiges Telefonnummern-Format."]
+  }
+}
+```
 
-**Endpoint:** `POST /api/accounts/change-password/`  
-**Berechtigung:** IsAuthenticated
+#### 🔒 Sicherheitshinweise:
+
+- ⚠️ **Passwort kann NICHT über diesen Endpoint geändert werden**
+- ⚠️ E-Mail-Änderung erfordert Verifizierung
+- ⚠️ Username kann nach Erstellung nicht geändert werden
+
+#### 💻 Frontend-Beispiel:
 
 ```javascript
-// Request
-{
-  "old_password": "AltesPaßw0rt!",
-  "new_password": "NeuesPaßw0rt!",
-  "new_password_confirm": "NeuesPaßw0rt!"
+async function updateProfile(updates) {
+  try {
+    const response = await SecureAuthService.authenticatedFetch(
+      '/api/accounts/profile/',
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updates)
+      }
+    );
+    
+    const updatedUser = await response.json();
+    console.log('✅ Profil aktualisiert:', updatedUser);
+    return updatedUser;
+    
+  } catch (error) {
+    console.error('❌ Update fehlgeschlagen:', error);
+    throw error;
+  }
 }
 
-// Response (200 OK)
-{
-  "message": "Passwort erfolgreich geändert."
-}
+// Verwendung:
+await updateProfile({
+  first_name: 'Maximilian',
+  city: 'München',
+  phone: '+498912345678'
+});
 ```
 
 ---
