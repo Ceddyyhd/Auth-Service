@@ -345,6 +345,7 @@ SPECTACULAR_SETTINGS = {
 # Django Allauth Settings
 AUTHENTICATION_BACKENDS = [
     'accounts.admin_mfa.AdminMFABackend',  # Custom MFA backend for admin
+    'permissions_system.backends.CustomPermissionBackend',  # Custom permissions for unified system
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
