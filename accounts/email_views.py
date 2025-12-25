@@ -9,6 +9,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 from .models import EmailVerificationToken, PasswordResetToken
 from .email_utils import (
     send_verification_email,
@@ -22,6 +24,27 @@ from django.contrib.auth.password_validation import validate_password
 User = get_user_model()
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'email': {
+                    'type': 'string',
+                    'format': 'email',
+                    'description': 'E-Mail-Adresse des Benutzers',
+                    'example': 'user@example.com'
+                }
+            },
+            'required': ['email']
+        }
+    },
+    responses={
+        200: {'description': 'Bestätigungs-E-Mail gesendet'},
+        400: {'description': 'E-Mail bereits verifiziert oder fehlt'}
+    },
+    description='Sendet eine neue Verifikations-E-Mail an den Benutzer.'
+)
 class ResendVerificationEmailView(APIView):
     """
     Resend verification email to user.
@@ -76,6 +99,26 @@ class ResendVerificationEmailView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'token': {
+                    'type': 'string',
+                    'description': 'Email-Verifizierungs-Token aus der Bestätigungs-E-Mail',
+                    'example': 'abc123def456'
+                }
+            },
+            'required': ['token']
+        }
+    },
+    responses={
+        200: {'description': 'E-Mail erfolgreich verifiziert'},
+        400: {'description': 'Ungültiger oder abgelaufener Token'}
+    },
+    description='Verifiziert die E-Mail-Adresse des Benutzers mit einem Token.'
+)
 class VerifyEmailView(APIView):
     """
     Verify user email with token.
@@ -126,6 +169,27 @@ class VerifyEmailView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'email': {
+                    'type': 'string',
+                    'format': 'email',
+                    'description': 'E-Mail-Adresse des Benutzers',
+                    'example': 'user@example.com'
+                }
+            },
+            'required': ['email']
+        }
+    },
+    responses={
+        200: {'description': 'Passwort-Reset-E-Mail gesendet'},
+        400: {'description': 'E-Mail fehlt'}
+    },
+    description='Sendet eine Passwort-Reset-E-Mail an den Benutzer.'
+)
 class RequestPasswordResetView(APIView):
     """
     Request password reset email.
@@ -196,6 +260,38 @@ class ResetPasswordSerializer(serializers.Serializer):
         return attrs
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'token': {
+                    'type': 'string',
+                    'description': 'Passwort-Reset-Token aus der E-Mail',
+                    'example': 'abc123def456'
+                },
+                'new_password': {
+                    'type': 'string',
+                    'format': 'password',
+                    'description': 'Neues Passwort (mind. 8 Zeichen)',
+                    'example': 'NeuesPa$$w0rt123'
+                },
+                'new_password2': {
+                    'type': 'string',
+                    'format': 'password',
+                    'description': 'Neues Passwort (Bestätigung)',
+                    'example': 'NeuesPa$$w0rt123'
+                }
+            },
+            'required': ['token', 'new_password', 'new_password2']
+        }
+    },
+    responses={
+        200: {'description': 'Passwort erfolgreich zurückgesetzt'},
+        400: {'description': 'Ungültiger Token oder Passwörter stimmen nicht überein'}
+    },
+    description='Setzt das Passwort zurück mit einem Token aus der Reset-E-Mail.'
+)
 class ResetPasswordView(APIView):
     """
     Reset password with token.

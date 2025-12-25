@@ -1,8 +1,9 @@
 {
 	"info": {
 		"name": "Auth Service API",
-		"description": "Vollständige API-Collection für den zentralen Authentication Service",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+		"description": "Vereinfachte API-Collection mit den wichtigsten Endpoints (Updated: 2025-12-25)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_postman_id": "auth-service-basic-2025"
 	},
 	"variable": [
 		{
@@ -12,17 +13,17 @@
 		},
 		{
 			"key": "website_id",
-			"value": "01285718-c525-41ad-b0bf-ffaa678b2398",
+			"value": "",
 			"type": "string"
 		},
 		{
 			"key": "api_key",
-			"value": "pk_SXrWuAIpKAtIuYL3wHkQpVATDUN9F5YsjvxyDe_Iy60",
+			"value": "",
 			"type": "string"
 		},
 		{
 			"key": "api_secret",
-			"value": "sk_ySB0A6M9C4GwlyGDOYBaBj6vEz4TROV9deh-T_bbQ5w",
+			"value": "",
 			"type": "string"
 		},
 		{
@@ -41,6 +42,16 @@
 			"type": "string"
 		}
 	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
 	"item": [
 		{
 			"name": "🔐 Authentifizierung",
@@ -54,10 +65,14 @@
 								"exec": [
 									"if (pm.response.code === 201) {",
 									"    var jsonData = pm.response.json();",
-									"    pm.collectionVariables.set('access_token', jsonData.tokens.access);",
-									"    pm.collectionVariables.set('refresh_token', jsonData.tokens.refresh);",
-									"    pm.collectionVariables.set('user_id', jsonData.user.id);",
-									"    console.log('✅ Tokens gespeichert');",
+									"    if (jsonData.tokens) {",
+									"        pm.collectionVariables.set('access_token', jsonData.tokens.access);",
+									"        pm.collectionVariables.set('refresh_token', jsonData.tokens.refresh);",
+									"    }",
+									"    if (jsonData.user) {",
+									"        pm.collectionVariables.set('user_id', jsonData.user.id);",
+									"    }",
+									"    console.log('✅ Registrierung erfolgreich');",
 									"}"
 								],
 								"type": "text/javascript"
@@ -99,6 +114,9 @@
 									"    var jsonData = pm.response.json();",
 									"    pm.collectionVariables.set('access_token', jsonData.access);",
 									"    pm.collectionVariables.set('refresh_token', jsonData.refresh);",
+									"    if (jsonData.user) {",
+									"        pm.collectionVariables.set('user_id', jsonData.user.id);",
+									"    }",
 									"    console.log('✅ Login erfolgreich');",
 									"}"
 								],
@@ -120,7 +138,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"username\": \"test@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"website_id\": \"{{website_id}}\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/accounts/login/",
@@ -131,7 +149,7 @@
 					"response": []
 				},
 				{
-					"name": "Token Refresh",
+					"name": "Token aktualisieren",
 					"event": [
 						{
 							"listen": "test",
@@ -140,7 +158,7 @@
 									"if (pm.response.code === 200) {",
 									"    var jsonData = pm.response.json();",
 									"    pm.collectionVariables.set('access_token', jsonData.access);",
-									"    console.log('✅ Token erneuert');",
+									"    console.log('✅ Token aktualisiert');",
 									"}"
 								],
 								"type": "text/javascript"
@@ -148,6 +166,9 @@
 						}
 					],
 					"request": {
+						"auth": {
+							"type": "noauth"
+						},
 						"method": "POST",
 						"header": [
 							{
@@ -160,9 +181,9 @@
 							"raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/api/token/refresh/",
+							"raw": "{{base_url}}/api/accounts/token/refresh/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "token", "refresh", ""]
+							"path": ["api", "accounts", "token", "refresh", ""]
 						}
 					},
 					"response": []
@@ -173,21 +194,18 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+							"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/accounts/logout/",
@@ -200,7 +218,7 @@
 			]
 		},
 		{
-			"name": "👤 Benutzer-Verwaltung",
+			"name": "👤 Benutzerprofil",
 			"item": [
 				{
 					"name": "Profil abrufen",
@@ -210,10 +228,6 @@
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
@@ -227,24 +241,20 @@
 				{
 					"name": "Profil aktualisieren",
 					"request": {
-						"method": "PATCH",
+						"method": "PUT",
 						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
 							},
 							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
+								"key": "Content-Type",
+								"value": "application/json"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"User\",\n  \"phone\": \"+49123456789\",\n  \"city\": \"Berlin\"\n}"
+							"raw": "{\n  \"first_name\": \"Aktualisiert\",\n  \"last_name\": \"Name\",\n  \"phone\": \"+1234567890\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/accounts/profile/",
@@ -260,21 +270,17 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
 							},
 							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
+								"key": "Content-Type",
+								"value": "application/json"
 							}
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"old_password\": \"SecurePassword123!\",\n  \"new_password\": \"NewSecurePassword123!\",\n  \"new_password_confirm\": \"NewSecurePassword123!\"\n}"
+							"raw": "{\n  \"old_password\": \"AltesPasswort123!\",\n  \"new_password\": \"NeuesPasswort123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/accounts/change-password/",
@@ -283,37 +289,100 @@
 						}
 					},
 					"response": []
-				},
+				}
+			]
+		},
+		{
+			"name": "🌍 Websites",
+			"item": [
 				{
-					"name": "Profil-Vollständigkeit prüfen",
+					"name": "Websites auflisten",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/accounts/check-profile-completion/?website_id={{website_id}}",
+							"raw": "{{base_url}}/api/accounts/websites/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "check-profile-completion", ""],
-							"query": [
-								{
-									"key": "website_id",
-									"value": "{{website_id}}"
-								}
-							]
+							"path": ["api", "accounts", "websites", ""]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Profil vervollständigen",
+					"name": "Website erstellen",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('website_id', jsonData.id);",
+									"    pm.collectionVariables.set('api_key', jsonData.api_key);",
+									"    pm.collectionVariables.set('api_secret', jsonData.api_secret);",
+									"    console.log('✅ Website erstellt - ID: ' + jsonData.id);",
+									"    console.log('API Key: ' + jsonData.api_key);",
+									"    console.log('API Secret: ' + jsonData.api_secret);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Meine Website\",\n  \"domain\": \"example.com\",\n  \"allowed_origins\": [\"http://localhost:3000\"],\n  \"required_fields\": [\"first_name\", \"last_name\", \"email\"],\n  \"enable_email_verification\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/websites/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "websites", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Website Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/accounts/websites/{{website_id}}/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "websites", "{{website_id}}", ""]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "📧 E-Mail & Verifizierung",
+			"item": [
+				{
+					"name": "Verifizierungs-E-Mail erneut senden",
 					"request": {
 						"method": "POST",
 						"header": [
@@ -322,8 +391,52 @@
 								"value": "application/json"
 							},
 							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
+								"key": "X-API-Key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"website_id\": \"{{website_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/resend-verification/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "resend-verification", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "E-Mail verifizieren",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"verification-token-here\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/verify-email/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "verify-email", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Passwort-Reset anfordern",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
 							},
 							{
 								"key": "X-API-Key",
@@ -332,50 +445,170 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"website_id\": \"{{website_id}}\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"User\",\n  \"phone\": \"+49123456789\"\n}"
+							"raw": "{\n  \"email\": \"test@example.com\",\n  \"website_id\": \"{{website_id}}\"\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/api/accounts/complete-profile/",
+							"raw": "{{base_url}}/api/accounts/request-password-reset/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "complete-profile", ""]
+							"path": ["api", "accounts", "request-password-reset", ""]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Aktive Sessions anzeigen",
+					"name": "Passwort zurücksetzen",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"reset-token-here\",\n  \"new_password\": \"NeuesPasswort123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/reset-password/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "reset-password", ""]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "🔒 Multi-Factor Authentication",
+			"item": [
+				{
+					"name": "MFA-Status",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/accounts/mfa/status/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "mfa", "status", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "MFA aktivieren",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/accounts/mfa/enable/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "mfa", "enable", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "MFA-Setup verifizieren",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/mfa/verify-setup/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "mfa", "verify-setup", ""]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "MFA deaktivieren",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"password\": \"SecurePassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/accounts/mfa/disable/",
+							"host": ["{{base_url}}"],
+							"path": ["api", "accounts", "mfa", "disable", ""]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "👥 Social Login",
+			"item": [
+				{
+					"name": "Social Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
 							},
 							{
 								"key": "X-API-Key",
 								"value": "{{api_key}}"
 							}
 						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"provider\": \"google\",\n  \"access_token\": \"google-access-token\",\n  \"website_id\": \"{{website_id}}\"\n}"
+						},
 						"url": {
-							"raw": "{{base_url}}/api/accounts/sessions/",
+							"raw": "{{base_url}}/api/accounts/social-login/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "sessions", ""]
+							"path": ["api", "accounts", "social-login", ""]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Social Accounts anzeigen",
+					"name": "Verknüpfte Social Accounts",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
@@ -389,552 +622,69 @@
 			]
 		},
 		{
-			"name": "🔑 Permissions",
+			"name": "🎯 Berechtigungen",
 			"item": [
 				{
-					"name": "Alle Permissions auflisten",
+					"name": "Berechtigungen auflisten",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/permissions/",
+							"raw": "{{base_url}}/api/permissions/permissions/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", ""]
+							"path": ["api", "permissions", "permissions", ""]
 						}
 					},
 					"response": []
 				},
 				{
-					"name": "Permissions nach Scope filtern (global)",
+					"name": "Meine Berechtigungen prüfen",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/permissions/?scope=global",
+							"raw": "{{base_url}}/api/permissions/check/me/?website_id={{website_id}}",
 							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", ""],
+							"path": ["api", "permissions", "check", "me", ""],
 							"query": [
 								{
-									"key": "scope",
-									"value": "global"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Permissions nach Website filtern",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/permissions/?website={{website_id}}",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", ""],
-							"query": [
-								{
-									"key": "website",
+									"key": "website_id",
 									"value": "{{website_id}}"
 								}
 							]
 						}
 					},
 					"response": []
-				},
-				{
-					"name": "Neue Permission erstellen (global)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"code\": \"users.delete\",\n  \"name\": \"Benutzer löschen\",\n  \"description\": \"Erlaubt das Löschen von Benutzern\",\n  \"scope\": \"global\",\n  \"website\": null\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/permissions/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Neue Permission erstellen (lokal)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"code\": \"products.edit\",\n  \"name\": \"Produkte bearbeiten\",\n  \"description\": \"Erlaubt das Bearbeiten von Produkten\",\n  \"scope\": \"local\",\n  \"website\": \"{{website_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/permissions/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Eigene Permissions prüfen",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/permissions/check/me/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", "check", "me", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Benutzer-Permissions prüfen",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/permissions/check/{{user_id}}/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", "check", "{{user_id}}", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Spezifische Permission prüfen",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"permission_code\": \"users.delete\",\n  \"website_id\": \"{{website_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/permissions/check-permission/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "permissions", "check-permission", ""]
-						}
-					},
-					"response": []
 				}
 			]
 		},
 		{
-			"name": "🎭 Rollen",
+			"name": "👥 Rollen",
 			"item": [
 				{
-					"name": "Alle Rollen auflisten",
+					"name": "Rollen auflisten",
 					"request": {
 						"method": "GET",
 						"header": [
 							{
 								"key": "Authorization",
 								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
 							}
 						],
 						"url": {
-							"raw": "{{base_url}}/api/roles/",
+							"raw": "{{base_url}}/api/permissions/roles/",
 							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Rollen nach Scope filtern",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/roles/?scope=global",
-							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ""],
-							"query": [
-								{
-									"key": "scope",
-									"value": "global"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Neue Rolle erstellen (global)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Administrator\",\n  \"description\": \"Vollständiger System-Zugriff\",\n  \"scope\": \"global\",\n  \"website\": null,\n  \"permissions\": []\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/roles/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Neue Rolle erstellen (lokal)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Shop Manager\",\n  \"description\": \"Verwaltet Shop-Produkte\",\n  \"scope\": \"local\",\n  \"website\": \"{{website_id}}\",\n  \"permissions\": []\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/roles/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Rolle einem Benutzer zuweisen",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"website_id\": \"{{website_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/roles/:role_id/assign/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ":role_id", "assign", ""],
-							"variable": [
-								{
-									"key": "role_id",
-									"value": "ROLE_UUID_HIER"
-								}
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Rolle von Benutzer entfernen",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"website_id\": \"{{website_id}}\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/roles/:role_id/revoke/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "roles", ":role_id", "revoke", ""],
-							"variable": [
-								{
-									"key": "role_id",
-									"value": "ROLE_UUID_HIER"
-								}
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "🌐 Websites",
-			"item": [
-				{
-					"name": "Alle Websites auflisten",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Website erstellen",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Test Website\",\n  \"domain\": \"test.example.com\",\n  \"callback_url\": \"https://test.example.com/auth/callback\",\n  \"allowed_origins\": [\"https://test.example.com\", \"http://localhost:3000\"],\n  \"require_first_name\": true,\n  \"require_last_name\": true,\n  \"require_email_verification\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Website-Details abrufen",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/{{website_id}}/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", "{{website_id}}", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Website aktualisieren",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							},
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"is_active\": true,\n  \"require_phone\": true\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/{{website_id}}/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", "{{website_id}}", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Website löschen",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{access_token}}"
-							},
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/{{website_id}}/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", "{{website_id}}", ""]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Website Pflichtfelder abrufen",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "X-API-Key",
-								"value": "{{api_key}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/accounts/websites/{{website_id}}/required-fields/",
-							"host": ["{{base_url}}"],
-							"path": ["api", "accounts", "websites", "{{website_id}}", "required-fields", ""]
+							"path": ["api", "permissions", "roles", ""]
 						}
 					},
 					"response": []

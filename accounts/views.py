@@ -8,6 +8,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
 import secrets
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 from .models import Website, UserSession
 from .serializers import (
     UserRegistrationSerializer,
@@ -293,6 +295,23 @@ class LoginView(TokenObtainPairView):
         }, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'refresh': {
+                    'type': 'string',
+                    'description': 'JWT Refresh Token',
+                    'example': 'eyJ0eXAiOiJKV1QiLCJhbGc...'
+                }
+            },
+            'required': ['refresh']
+        }
+    },
+    responses={200: {'description': 'Erfolgreich abgemeldet'}},
+    description='Invalidiert den Refresh-Token und meldet den Benutzer ab.'
+)
 class LogoutView(APIView):
     """
     🚪 Benutzer-Logout
@@ -451,11 +470,51 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
         return UserUpdateSerializer
 
 
+@extend_schema(
+    request=ChangePasswordSerializer,
+    responses={
+        200: {'description': 'Passwort erfolgreich geändert'},
+        400: {'description': 'Ungültige Daten oder altes Passwort falsch'}
+    },
+    description='Ändert das Passwort des angemeldeten Benutzers. Erfordert altes Passwort, neues Passwort und Bestätigung des neuen Passworts.'
+)
 class ChangePasswordView(APIView):
     """
-    API endpoint to change user password.
+    🔒 Passwort ändern
     
-    POST /api/accounts/change-password/
+    Ändert das Passwort des angemeldeten Benutzers.
+    
+    **Endpoint:** POST /api/accounts/change-password/
+    
+    **Headers erforderlich:**
+    ```
+    Authorization: Bearer <access_token>
+    ```
+    
+    **Request Body:**
+    ```json
+    {
+      "old_password": "AltesPa$$w0rt",
+      "new_password": "NeuesPa$$w0rt123",
+      "new_password2": "NeuesPa$$w0rt123"
+    }
+    ```
+    
+    **Response (200 OK):**
+    ```json
+    {
+      "message": "Passwort erfolgreich geändert."
+    }
+    ```
+    
+    **Response (400 Bad Request):**
+    ```json
+    {
+      "error": "Altes Passwort ist falsch."
+    }
+    ```
+    
+    **Berechtigung:** Angemeldet sein (IsAuthenticated)
     """
     permission_classes = (permissions.IsAuthenticated,)
     
@@ -511,11 +570,45 @@ class WebsiteDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = (permissions.IsAdminUser,)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'website_id': {
+                    'type': 'string',
+                    'format': 'uuid',
+                    'description': 'UUID der Website',
+                    'example': '550e8400-e29b-41d4-a716-446655440000'
+                }
+            },
+            'required': ['website_id']
+        }
+    },
+    responses={
+        200: {'description': 'Zugriff erfolgreich gewährt oder entfernt'},
+        404: {'description': 'Benutzer oder Website nicht gefunden'}
+    },
+    description='Verwaltet den Zugriff von Benutzern auf Websites.'
+)
 class UserWebsiteAccessView(APIView):
     """
-    API endpoint to manage user access to websites.
+    🌐 Benutzer-Website-Zugriff verwalten
     
-    POST /api/accounts/users/{user_id}/websites/
+    Gewährt oder entzieht Benutzern Zugriff auf Websites.
+    
+    **Endpoints:**
+    - POST /api/accounts/users/{user_id}/websites/ - Zugriff gewähren
+    - DELETE /api/accounts/users/{user_id}/websites/ - Zugriff entziehen
+    
+    **Request Body:**
+    ```json
+    {
+      "website_id": "550e8400-e29b-41d4-a716-446655440000"
+    }
+    ```
+    
+    **Berechtigung:** Admin (IsAdminUser)
     """
     permission_classes = (permissions.IsAdminUser,)
     
@@ -558,6 +651,27 @@ class UserWebsiteAccessView(APIView):
                           status=status.HTTP_404_NOT_FOUND)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'website_id': {
+                    'type': 'string',
+                    'format': 'uuid',
+                    'description': 'UUID der Website',
+                    'example': '550e8400-e29b-41d4-a716-446655440000'
+                }
+            },
+            'required': ['website_id']
+        }
+    },
+    responses={
+        200: {'description': 'Zugriff verifiziert'},
+        404: {'description': 'Website nicht gefunden'}
+    },
+    description='Verifiziert, ob der Benutzer Zugriff auf eine bestimmte Website hat.'
+)
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def verify_access(request):

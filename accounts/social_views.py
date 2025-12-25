@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 from accounts.models import Website, SocialAccount
 from accounts.serializers import (
     UserSerializer,
@@ -18,6 +20,59 @@ import hashlib
 User = get_user_model()
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'provider': {
+                    'type': 'string',
+                    'enum': ['google', 'facebook', 'github', 'microsoft', 'apple'],
+                    'description': 'Social Login Provider',
+                    'example': 'google'
+                },
+                'provider_user_id': {
+                    'type': 'string',
+                    'description': 'Benutzer-ID vom Provider',
+                    'example': '1234567890'
+                },
+                'email': {
+                    'type': 'string',
+                    'format': 'email',
+                    'description': 'E-Mail-Adresse vom Provider',
+                    'example': 'user@example.com'
+                },
+                'first_name': {
+                    'type': 'string',
+                    'description': 'Vorname (optional)',
+                    'example': 'Max'
+                },
+                'last_name': {
+                    'type': 'string',
+                    'description': 'Nachname (optional)',
+                    'example': 'Mustermann'
+                },
+                'avatar_url': {
+                    'type': 'string',
+                    'format': 'uri',
+                    'description': 'Profilbild-URL (optional)',
+                    'example': 'https://example.com/avatar.jpg'
+                },
+                'access_token': {
+                    'type': 'string',
+                    'description': 'Access Token vom Provider',
+                    'example': 'ya29.a0AfH6SMB...'
+                }
+            },
+            'required': ['provider', 'provider_user_id', 'email']
+        }
+    },
+    responses={
+        200: {'description': 'Erfolgreich eingeloggt'},
+        400: {'description': 'Fehlende erforderliche Felder'}
+    },
+    description='Behandelt Social Login (Google, Facebook, GitHub, etc.).'
+)
 class SocialLoginView(APIView):
     """
     Handle social login (Google, Facebook, GitHub, etc.).

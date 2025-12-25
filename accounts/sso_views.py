@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.conf import settings
 from datetime import timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 import secrets
 
 from .models import SSOToken, Website
@@ -18,6 +20,54 @@ from .models import SSOToken, Website
 User = get_user_model()
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name='website_id',
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.QUERY,
+            description='UUID der anfragenden Website',
+            required=True
+        ),
+        OpenApiParameter(
+            name='return_url',
+            type=OpenApiTypes.URI,
+            location=OpenApiParameter.QUERY,
+            description='URL zurück zur Website nach SSO',
+            required=True
+        )
+    ],
+    responses={
+        200: {
+            'description': 'SSO initiiert',
+            'content': {
+                'application/json': {
+                    'examples': {
+                        'authenticated': {
+                            'summary': 'Benutzer angemeldet',
+                            'value': {
+                                'authenticated': True,
+                                'sso_token': 'abc123def456',
+                                'redirect_url': 'https://example.com/auth/callback?sso_token=abc123',
+                                'expires_in': 300
+                            }
+                        },
+                        'not_authenticated': {
+                            'summary': 'Benutzer nicht angemeldet',
+                            'value': {
+                                'authenticated': False,
+                                'login_url': 'http://localhost:3000/login?website_id=...&return_url=...',
+                                'message': 'User must login first'
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {'description': 'Fehlende Parameter oder ungültige Website-ID'}
+    },
+    description='Initiiert SSO-Flow für eine Website. Prüft ob Benutzer angemeldet ist und gibt SSO-Token zurück oder Login-URL.'
+)
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def initiate_sso(request):
@@ -97,6 +147,33 @@ def initiate_sso(request):
         })
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'sso_token': {
+                    'type': 'string',
+                    'description': 'SSO-Token von initiate_sso erhalten',
+                    'example': 'abc123def456'
+                },
+                'website_id': {
+                    'type': 'string',
+                    'format': 'uuid',
+                    'description': 'UUID der Website',
+                    'example': '550e8400-e29b-41d4-a716-446655440000'
+                }
+            },
+            'required': ['sso_token', 'website_id']
+        }
+    },
+    responses={
+        200: {'description': 'JWT-Tokens erfolgreich ausgetauscht'},
+        400: {'description': 'Fehlende Parameter'},
+        401: {'description': 'Ungültiger oder abgelaufener SSO-Token'}
+    },
+    description='Tauscht SSO-Token gegen JWT-Tokens aus. Wird von der Website aufgerufen nachdem SSO-Token empfangen wurde.'
+)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def exchange_sso_token(request):

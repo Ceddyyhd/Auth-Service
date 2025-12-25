@@ -134,17 +134,30 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
 
 class ChangePasswordSerializer(serializers.Serializer):
-    """Serializer for password change."""
+    """
+    Serializer for password change.
     
-    old_password = serializers.CharField(required=True, style={'input_type': 'password'})
+    Requires the user's current password and the new password (twice for confirmation).
+    """
+    
+    old_password = serializers.CharField(
+        required=True, 
+        style={'input_type': 'password'},
+        help_text='Aktuelles Passwort des Benutzers',
+        label='Altes Passwort'
+    )
     new_password = serializers.CharField(
         required=True,
         validators=[validate_password],
-        style={'input_type': 'password'}
+        style={'input_type': 'password'},
+        help_text='Neues Passwort (mindestens 8 Zeichen)',
+        label='Neues Passwort'
     )
     new_password2 = serializers.CharField(
         required=True,
-        style={'input_type': 'password'}
+        style={'input_type': 'password'},
+        help_text='Neues Passwort (Bestätigung)',
+        label='Neues Passwort (Wiederholung)'
     )
     
     def validate(self, attrs):

@@ -9,6 +9,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
 from django.conf import settings
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 import qrcode
 import qrcode.image.svg
 import io
@@ -17,6 +19,14 @@ import base64
 from .models import MFADevice
 
 
+@extend_schema(
+    request=None,
+    responses={
+        200: {'description': 'MFA-Setup initiiert mit QR-Code und Backup-Codes'},
+        400: {'description': 'MFA bereits aktiviert'}
+    },
+    description='Aktiviert MFA für den angemeldeten Benutzer und gibt QR-Code zurück.'
+)
 class EnableMFAView(APIView):
     """
     Enable MFA for the authenticated user.
@@ -79,6 +89,28 @@ class EnableMFAView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'token': {
+                    'type': 'string',
+                    'description': '6-stelliger TOTP-Code aus der Authenticator-App',
+                    'example': '123456',
+                    'minLength': 6,
+                    'maxLength': 6
+                }
+            },
+            'required': ['token']
+        }
+    },
+    responses={
+        200: {'description': 'MFA erfolgreich aktiviert'},
+        400: {'description': 'Ungültiger Token oder MFA noch nicht initiiert'}
+    },
+    description='Verifiziert das MFA-Setup durch einen TOTP-Token und aktiviert MFA.'
+)
 class VerifyMFASetupView(APIView):
     """
     Verify MFA setup by confirming a TOTP token.
@@ -123,6 +155,34 @@ class VerifyMFASetupView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(
+    request={
+        'application/json': {
+            'type': 'object',
+            'properties': {
+                'password': {
+                    'type': 'string',
+                    'description': 'Aktuelles Benutzer-Passwort',
+                    'format': 'password',
+                    'example': 'MeinPasswort123!'
+                },
+                'token': {
+                    'type': 'string',
+                    'description': '6-stelliger TOTP-Code aus der Authenticator-App',
+                    'example': '123456',
+                    'minLength': 6,
+                    'maxLength': 6
+                }
+            },
+            'required': ['password', 'token']
+        }
+    },
+    responses={
+        200: {'description': 'MFA erfolgreich deaktiviert'},
+        400: {'description': 'Ungültiges Passwort oder Token'}
+    },
+    description='Deaktiviert MFA für den Benutzer. Erfordert Passwort und MFA-Token zur Bestätigung.'
+)
 class DisableMFAView(APIView):
     """
     Disable MFA for the authenticated user.
