@@ -263,9 +263,9 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
 SERVER_EMAIL = config('SERVER_EMAIL', default=config('DEFAULT_FROM_EMAIL', default='noreply@example.com'))
 
-# Email URLs für Verification und Password Reset
-EMAIL_VERIFY_URL = config('EMAIL_VERIFY_URL', default='http://localhost:3000/verify-email')
-PASSWORD_RESET_URL = config('PASSWORD_RESET_URL', default='http://localhost:3000/reset-password')
+# Email URLs für Verification und Password Reset (aus .env geladen)
+EMAIL_VERIFY_URL = config('EMAIL_VERIFY_URL', default='http://localhost:8000/api/accounts/verify-email')
+PASSWORD_RESET_URL = config('PASSWORD_RESET_URL', default='http://localhost:8000/api/accounts/reset-password')
 
 # Email Token Expiry
 EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS = config('EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS', default=24, cast=int)
@@ -440,7 +440,8 @@ SERVER_EMAIL = config('SERVER_EMAIL', default=EMAIL_HOST_USER)
 EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS = 24
 PASSWORD_RESET_TOKEN_EXPIRY_HOURS = 1
 
-# Frontend URLs for email links
+# Frontend URL (optional, für spätere Verwendung)
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
-EMAIL_VERIFY_URL = f"{FRONTEND_URL}/verify-email"
-PASSWORD_RESET_URL = f"{FRONTEND_URL}/reset-password"
+
+# HINWEIS: EMAIL_VERIFY_URL und PASSWORD_RESET_URL werden oben bereits aus .env geladen!
+# Sie werden NICHT überschrieben, damit .env-Konfiguration funktioniert.
