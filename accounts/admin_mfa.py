@@ -26,7 +26,6 @@ class AdminMFAAuthenticationForm(AuthenticationForm):
             'class': 'vTextField',
             'maxlength': '6',
             'pattern': '[0-9]{6}',
-            'style': 'display:none;',  # Hidden by default
         }),
         help_text=_("Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.")
     )
