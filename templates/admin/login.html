@@ -251,11 +251,6 @@
                     <input type="hidden" name="next" value="{{ next }}">
                 </div>
                 
-                <div class="loading-spinner" id="loading-spinner">
-                    <div class="spinner"></div>
-                    <span style="margin-left: 10px;">Prüfe MFA-Status...</span>
-                </div>
-                
                 {% if form.mfa_token %}
                 <div class="form-row mfa-field" id="mfa-field">
                     {{ form.mfa_token.errors }}
@@ -264,6 +259,12 @@
                     <span class="mfa-help-text">
                         Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein
                     </span>
+                </div>
+                
+                <div style="text-align: center; margin: 15px 0;">
+                    <a href="#" id="show-mfa-link" style="color: var(--primary); text-decoration: none; font-size: 13px;">
+                        🔐 MFA-Code eingeben?
+                    </a>
                 </div>
                 {% endif %}
 
@@ -288,96 +289,54 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('login-form');
-    const usernameField = document.querySelector('input[name="username"]');
-    const passwordField = document.querySelector('input[name="password"]');
     const mfaFieldContainer = document.getElementById('mfa-field');
     const mfaField = document.querySelector('input[name="mfa_token"]');
-    const submitBtn = document.getElementById('submit-btn');
-    const loadingSpinner = document.getElementById('loading-spinner');
+    const showMfaLink = document.getElementById('show-mfa-link');
     
-    let mfaRequired = false;
-    let mfaChecked = false;
+    // Check if there's an MFA error (means user needs MFA)
+    {% if form.errors %}
+    // Check if error message contains MFA requirement
+    const errorMessages = [
+        {% for error in form.non_field_errors %}
+        "{{ error|escapejs }}",
+        {% endfor %}
+    ];
+    
+    const mfaRequired = errorMessages.some(msg => 
+        msg.includes('Multi-Factor') || msg.includes('MFA')
+    );
+    
+    if (mfaRequired && mfaFieldContainer) {
+        // Show MFA field if backend says it's required
+        mfaFieldContainer.classList.add('visible');
+        if (showMfaLink) showMfaLink.style.display = 'none';
+        if (mfaField) mfaField.focus();
+    }
+    {% endif %}
+    
+    // Show MFA field when user clicks the link
+    if (showMfaLink && mfaFieldContainer) {
+        showMfaLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            mfaFieldContainer.classList.add('visible');
+            this.style.display = 'none';
+            if (mfaField) mfaField.focus();
+        });
+    }
     
     if (mfaField) {
         // Auto-format MFA input (nur Zahlen, maximal 6)
         mfaField.addEventListener('input', function(e) {
             this.value = this.value.replace(/[^0-9]/g, '').substring(0, 6);
         });
-    }
-    
-    // Check MFA status when password is entered
-function checkMFARequired() {
-        const username = usernameField.value.trim();
-        const password = passwordField.value.trim();
         
-        if (!username || !password || mfaChecked) return;
-        
-        // Show loading
-        loadingSpinner.classList.add('active');
-        submitBtn.disabled = true;
-        
-        // Check if user has MFA enabled via Django session
-        // Since we can't make AJAX calls easily, we'll just show MFA field
-        // after both fields are filled
-        setTimeout(() => {
-            // For now, always show MFA field if both credentials are entered
-            // The backend will handle validation
-            if (mfaFieldContainer) {
-                mfaFieldContainer.classList.add('visible');
-                if (mfaField) {
-                    mfaField.focus();
-                }
-            }
-            loadingSpinner.classList.remove('active');
-            submitBtn.disabled = false;
-            mfaChecked = true;
-        }, 300);
-    }
-
-    
-    // Trigger MFA check on password blur
-    if (passwordField) {
-        passwordField.addEventListener('blur', function() {
-            if (usernameField.value && passwordField.value) {
-                checkMFARequired();
-            }
-        });
-        
-        passwordField.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                if (usernameField.value && passwordField.value) {
-                    checkMFARequired();
-                    if (mfaField && mfaFieldContainer.classList.contains('visible')) {
-                        setTimeout(() => mfaField.focus(), 400);
-                    } else {
-                        setTimeout(() => form.submit(), 400);
-                    }
-                }
-            }
-        });
-    }
-    
-    // Enter im MFA-Feld submittet das Formular
-    if (mfaField) {
+        // Enter im MFA-Feld submittet das Formular
         mfaField.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && this.value.length === 6) {
                 form.submit();
             }
         });
     }
-    
-    // Form submission handler
-    form.addEventListener('submit', function(e) {
-        if (mfaFieldContainer && mfaFieldContainer.classList.contains('visible')) {
-            if (!mfaField.value || mfaField.value.length !== 6) {
-                e.preventDefault();
-                alert('Bitte geben Sie einen 6-stelligen MFA-Code ein.');
-                mfaField.focus();
-                return false;
-            }
-        }
-    });
 });
 </script>
 

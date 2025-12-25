@@ -63,11 +63,11 @@ class PermissionAdmin(admin.ModelAdmin):
 @admin.register(Role)
 class RoleAdmin(admin.ModelAdmin):
     """
-    Rollen gruppieren mehrere Berechtigungen
+    Rollen gruppieren mehrere Berechtigungen.
+    Global/Lokal wird bei der Zuweisung an Benutzer festgelegt, nicht hier.
     """
-    list_display = ('name', 'get_scope_display', 'get_website_display', 
-                    'get_permissions_count', 'get_users_count', 'created_at')
-    list_filter = ('scope', 'website', 'created_at')
+    list_display = ('name', 'get_permissions_count', 'get_users_count', 'created_at')
+    list_filter = ('created_at',)
     search_fields = ('name', 'description')
     filter_horizontal = ('permissions',)
     readonly_fields = ('created_at', 'updated_at')
@@ -77,34 +77,15 @@ class RoleAdmin(admin.ModelAdmin):
             'fields': ('name', 'description'),
             'description': 'Erstelle eine Rolle die mehrere Berechtigungen bündelt (z.B. "Editor", "Administrator")'
         }),
-        ('🌍 Geltungsbereich', {
-            'fields': ('scope', 'website'),
-            'description': (
-                '<strong>Global:</strong> Kann allen Benutzern zugewiesen werden<br>'
-                '<strong>Lokal:</strong> Nur für Benutzer einer spezifischen Website'
-            )
-        }),
         ('🔑 Berechtigungen', {
             'fields': ('permissions',),
-            'description': 'Wähle alle Berechtigungen, die diese Rolle haben soll'
+            'description': 'Wähle alle Berechtigungen, die diese Rolle haben soll. Die Rolle kann dann bei Benutzern GLOBAL (alle Websites) oder LOKAL (nur bestimmte Website) zugewiesen werden.'
         }),
         ('📅 Zeitstempel', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
-    
-    def get_scope_display(self, obj):
-        if obj.scope == 'global':
-            return '🌍 Global'
-        return '🏠 Lokal'
-    get_scope_display.short_description = 'Bereich'
-    
-    def get_website_display(self, obj):
-        if obj.website:
-            return f"🌐 {obj.website.name}"
-        return "—"
-    get_website_display.short_description = 'Website'
     
     def get_permissions_count(self, obj):
         count = obj.permissions.count()

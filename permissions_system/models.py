@@ -68,35 +68,12 @@ class Permission(models.Model):
 class Role(models.Model):
     """
     Represents a role that groups multiple permissions.
-    Can be global or local to a specific website.
+    Roles are assigned to users via UserRole, where the global/local scope is defined.
     """
     
-    SCOPE_CHOICES = [
-        ('global', 'Global'),
-        ('local', 'Lokal'),
-    ]
-    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255, verbose_name='Name')
+    name = models.CharField(max_length=255, unique=True, verbose_name='Name')
     description = models.TextField(blank=True, verbose_name='Beschreibung')
-    
-    scope = models.CharField(
-        max_length=10,
-        choices=SCOPE_CHOICES,
-        default='local',
-        verbose_name='Geltungsbereich'
-    )
-    
-    # For local roles
-    website = models.ForeignKey(
-        'accounts.Website',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='roles',
-        verbose_name='Website',
-        help_text='Leer lassen für globale Rollen'
-    )
     
     permissions = models.ManyToManyField(
         Permission,
@@ -111,26 +88,23 @@ class Role(models.Model):
     class Meta:
         verbose_name = 'Rolle'
         verbose_name_plural = 'Rollen'
-        ordering = ['scope', 'name']
+        ordering = ['name']
     
     def __str__(self):
-        if self.scope == 'global':
-            return f"{self.name} (Global)"
-        return f"{self.name} ({self.website.name if self.website else 'Lokal'})"
-    
-    def clean(self):
-        """Validate that global roles don't have a website."""
-        from django.core.exceptions import ValidationError
-        if self.scope == 'global' and self.website:
-            raise ValidationError('Globale Rollen können nicht an eine Website gebunden sein.')
-        if self.scope == 'local' and not self.website:
-            raise ValidationError('Lokale Rollen müssen an eine Website gebunden sein.')
+        return self.name
 
 
 class UserRole(models.Model):
     """
-    Assigns roles to users for specific websites or globally.
+    Assigns roles to users with global or local scope.
+    - Global: Role applies to all websites
+    - Local: Role applies only to specified website(s)
     """
+    
+    SCOPE_CHOICES = [
+        ('global', 'Global - Gilt für alle Websites'),
+        ('local', 'Lokal - Nur für ausgewählte Website'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -146,7 +120,15 @@ class UserRole(models.Model):
         verbose_name='Rolle'
     )
     
-    # For additional context
+    scope = models.CharField(
+        max_length=10,
+        choices=SCOPE_CHOICES,
+        default='local',
+        verbose_name='Geltungsbereich',
+        help_text='Global = Alle Websites, Lokal = Nur ausgewählte Website'
+    )
+    
+    # For local scope
     website = models.ForeignKey(
         'accounts.Website',
         on_delete=models.CASCADE,
@@ -154,7 +136,7 @@ class UserRole(models.Model):
         blank=True,
         related_name='user_role_assignments',
         verbose_name='Website',
-        help_text='Für lokale Rollen'
+        help_text='Pflicht wenn Geltungsbereich "Lokal" ist'
     )
     
     assigned_at = models.DateTimeField(auto_now_add=True, verbose_name='Zugewiesen am')
@@ -174,9 +156,19 @@ class UserRole(models.Model):
         unique_together = [['user', 'role', 'website']]
     
     def __str__(self):
+        if self.scope == 'global':
+            return f"{self.user.email} - {self.role.name} (Global)"
         if self.website:
             return f"{self.user.email} - {self.role.name} ({self.website.name})"
-        return f"{self.user.email} - {self.role.name}"
+        return f"{self.user.email} - {self.role.name} (Lokal)"
+    
+    def clean(self):
+        """Validate that local assignments have a website."""
+        from django.core.exceptions import ValidationError
+        if self.scope == 'global' and self.website:
+            raise ValidationError('Globale Rollenzuweisungen können nicht an eine Website gebunden sein.')
+        if self.scope == 'local' and not self.website:
+            raise ValidationError('Lokale Rollenzuweisungen müssen an eine Website gebunden sein.')
 
 
 class UserPermission(models.Model):

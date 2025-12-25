@@ -3,40 +3,61 @@ Management command to create all Auth Service permissions
 """
 from django.core.management.base import BaseCommand
 from permissions_system.models import Permission
+from accounts.models import Website
+import secrets
 
 
 class Command(BaseCommand):
-    help = 'Erstellt alle Auth-Service Berechtigungen'
+    help = 'Erstellt alle Auth-Service Berechtigungen für auth.palmdynamicx.de'
 
     def handle(self, *args, **options):
+        # Get or create auth.palmdynamicx.de website
+        auth_website, created = Website.objects.get_or_create(
+            domain='auth.palmdynamicx.de',
+            defaults={
+                'name': 'Auth Service',
+                'callback_url': 'https://auth.palmdynamicx.de/callback',
+                'client_id': 'auth-service-palmdynamicx',
+                'client_secret': secrets.token_urlsafe(32),
+            }
+        )
+        
+        if created:
+            self.stdout.write(
+                self.style.SUCCESS(f'✅ Website erstellt: {auth_website.name} ({auth_website.domain})')
+            )
+        else:
+            self.stdout.write(
+                self.style.WARNING(f'ℹ️  Website gefunden: {auth_website.name} ({auth_website.domain})')
+            )
         permissions = [
             # Authentication & User Management
             {
                 'codename': 'auth.register_user',
                 'name': 'Benutzer registrieren',
                 'description': 'Erlaubt die Registrierung neuer Benutzer',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Authentifizierung'
             },
             {
                 'codename': 'auth.login_user',
                 'name': 'Benutzer anmelden',
                 'description': 'Erlaubt die Anmeldung von Benutzern',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Authentifizierung'
             },
             {
                 'codename': 'auth.logout_user',
                 'name': 'Benutzer abmelden',
                 'description': 'Erlaubt die Abmeldung von Benutzern',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Authentifizierung'
             },
             {
                 'codename': 'auth.refresh_token',
                 'name': 'Token erneuern',
                 'description': 'Erlaubt die Erneuerung von Access Tokens',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Authentifizierung'
             },
             
@@ -45,42 +66,42 @@ class Command(BaseCommand):
                 'codename': 'profile.view_own',
                 'name': 'Eigenes Profil ansehen',
                 'description': 'Erlaubt das Ansehen des eigenen Benutzerprofils',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             {
                 'codename': 'profile.edit_own',
                 'name': 'Eigenes Profil bearbeiten',
                 'description': 'Erlaubt die Bearbeitung des eigenen Profils',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             {
                 'codename': 'profile.view_all',
                 'name': 'Alle Profile ansehen',
                 'description': 'Erlaubt das Ansehen aller Benutzerprofile',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             {
                 'codename': 'profile.edit_all',
                 'name': 'Alle Profile bearbeiten',
                 'description': 'Erlaubt die Bearbeitung aller Benutzerprofile',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             {
                 'codename': 'profile.delete',
                 'name': 'Profile löschen',
                 'description': 'Erlaubt das Löschen von Benutzerprofilen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             {
                 'codename': 'profile.change_password',
                 'name': 'Passwort ändern',
                 'description': 'Erlaubt die Änderung des eigenen Passworts',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Profilverwaltung'
             },
             
@@ -89,42 +110,42 @@ class Command(BaseCommand):
                 'codename': 'email.verify',
                 'name': 'E-Mail verifizieren',
                 'description': 'Erlaubt die Verifizierung von E-Mail-Adressen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             {
                 'codename': 'email.resend_verification',
                 'name': 'Verifizierungs-E-Mail erneut senden',
                 'description': 'Erlaubt das erneute Senden von Verifizierungs-E-Mails',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             {
                 'codename': 'email.request_password_reset',
                 'name': 'Passwort-Reset anfordern',
                 'description': 'Erlaubt die Anforderung eines Passwort-Resets',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             {
                 'codename': 'email.reset_password',
                 'name': 'Passwort zurücksetzen',
                 'description': 'Erlaubt das Zurücksetzen des Passworts',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             {
                 'codename': 'email.test_smtp',
                 'name': 'SMTP testen',
                 'description': 'Erlaubt das Testen der SMTP-Konfiguration',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             {
                 'codename': 'email.view_smtp_config',
                 'name': 'SMTP-Konfiguration ansehen',
                 'description': 'Erlaubt das Ansehen der SMTP-Konfiguration',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'E-Mail-Verwaltung'
             },
             
@@ -133,42 +154,42 @@ class Command(BaseCommand):
                 'codename': 'mfa.enable',
                 'name': 'MFA aktivieren',
                 'description': 'Erlaubt die Aktivierung der Zwei-Faktor-Authentifizierung',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             {
                 'codename': 'mfa.disable',
                 'name': 'MFA deaktivieren',
                 'description': 'Erlaubt die Deaktivierung der Zwei-Faktor-Authentifizierung',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             {
                 'codename': 'mfa.verify_setup',
                 'name': 'MFA-Einrichtung verifizieren',
                 'description': 'Erlaubt die Verifizierung der MFA-Einrichtung',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             {
                 'codename': 'mfa.regenerate_backup_codes',
                 'name': 'Backup-Codes neu generieren',
                 'description': 'Erlaubt die Neugenerierung von MFA-Backup-Codes',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             {
                 'codename': 'mfa.view_status',
                 'name': 'MFA-Status ansehen',
                 'description': 'Erlaubt das Ansehen des MFA-Status',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             {
                 'codename': 'mfa.verify_token',
                 'name': 'MFA-Token verifizieren',
                 'description': 'Erlaubt die Verifizierung von MFA-Tokens',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'MFA-Verwaltung'
             },
             
@@ -177,28 +198,28 @@ class Command(BaseCommand):
                 'codename': 'sso.initiate',
                 'name': 'SSO initiieren',
                 'description': 'Erlaubt die Initiierung von Single Sign-On',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'SSO-Verwaltung'
             },
             {
                 'codename': 'sso.exchange_token',
                 'name': 'SSO-Token tauschen',
                 'description': 'Erlaubt den Austausch von SSO-Tokens',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'SSO-Verwaltung'
             },
             {
                 'codename': 'sso.check_status',
                 'name': 'SSO-Status prüfen',
                 'description': 'Erlaubt das Prüfen des SSO-Status',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'SSO-Verwaltung'
             },
             {
                 'codename': 'sso.logout',
                 'name': 'SSO-Abmeldung',
                 'description': 'Erlaubt die Abmeldung vom SSO',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'SSO-Verwaltung'
             },
             
@@ -207,28 +228,28 @@ class Command(BaseCommand):
                 'codename': 'social.login',
                 'name': 'Social Login',
                 'description': 'Erlaubt die Anmeldung über Social Media (Google, etc.)',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Social Login'
             },
             {
                 'codename': 'social.complete_profile',
                 'name': 'Profil vervollständigen',
                 'description': 'Erlaubt das Vervollständigen des Profils nach Social Login',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Social Login'
             },
             {
                 'codename': 'social.view_accounts',
                 'name': 'Verknüpfte Konten ansehen',
                 'description': 'Erlaubt das Ansehen verknüpfter Social-Media-Konten',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Social Login'
             },
             {
                 'codename': 'social.unlink_account',
                 'name': 'Konto trennen',
                 'description': 'Erlaubt das Trennen von Social-Media-Konten',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Social Login'
             },
             
@@ -237,63 +258,63 @@ class Command(BaseCommand):
                 'codename': 'website.create',
                 'name': 'Website erstellen',
                 'description': 'Erlaubt das Erstellen neuer Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.view_own',
                 'name': 'Eigene Websites ansehen',
                 'description': 'Erlaubt das Ansehen eigener Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.view_all',
                 'name': 'Alle Websites ansehen',
                 'description': 'Erlaubt das Ansehen aller Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.edit_own',
                 'name': 'Eigene Websites bearbeiten',
                 'description': 'Erlaubt die Bearbeitung eigener Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.edit_all',
                 'name': 'Alle Websites bearbeiten',
                 'description': 'Erlaubt die Bearbeitung aller Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.delete_own',
                 'name': 'Eigene Websites löschen',
                 'description': 'Erlaubt das Löschen eigener Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.delete_all',
                 'name': 'Alle Websites löschen',
                 'description': 'Erlaubt das Löschen aller Websites',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.manage_api_keys',
                 'name': 'API-Keys verwalten',
                 'description': 'Erlaubt die Verwaltung von Website API-Keys',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             {
                 'codename': 'website.view_required_fields',
                 'name': 'Pflichtfelder ansehen',
                 'description': 'Erlaubt das Ansehen der Website-Pflichtfelder',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Website-Verwaltung'
             },
             
@@ -302,21 +323,21 @@ class Command(BaseCommand):
                 'codename': 'access.verify',
                 'name': 'Zugriff verifizieren',
                 'description': 'Erlaubt die Verifizierung von Website-Zugriffen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Zugriffskontrolle'
             },
             {
                 'codename': 'access.grant',
                 'name': 'Zugriff gewähren',
                 'description': 'Erlaubt das Gewähren von Website-Zugriffen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Zugriffskontrolle'
             },
             {
                 'codename': 'access.revoke',
                 'name': 'Zugriff entziehen',
                 'description': 'Erlaubt das Entziehen von Website-Zugriffen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Zugriffskontrolle'
             },
             
@@ -325,28 +346,28 @@ class Command(BaseCommand):
                 'codename': 'session.view_own',
                 'name': 'Eigene Sitzungen ansehen',
                 'description': 'Erlaubt das Ansehen eigener aktiver Sitzungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Sitzungsverwaltung'
             },
             {
                 'codename': 'session.view_all',
                 'name': 'Alle Sitzungen ansehen',
                 'description': 'Erlaubt das Ansehen aller Benutzersitzungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Sitzungsverwaltung'
             },
             {
                 'codename': 'session.terminate_own',
                 'name': 'Eigene Sitzungen beenden',
                 'description': 'Erlaubt das Beenden eigener Sitzungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Sitzungsverwaltung'
             },
             {
                 'codename': 'session.terminate_all',
                 'name': 'Alle Sitzungen beenden',
                 'description': 'Erlaubt das Beenden aller Benutzersitzungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Sitzungsverwaltung'
             },
             
@@ -355,42 +376,42 @@ class Command(BaseCommand):
                 'codename': 'permission.create',
                 'name': 'Berechtigungen erstellen',
                 'description': 'Erlaubt das Erstellen neuer Berechtigungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             {
                 'codename': 'permission.view',
                 'name': 'Berechtigungen ansehen',
                 'description': 'Erlaubt das Ansehen von Berechtigungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             {
                 'codename': 'permission.edit',
                 'name': 'Berechtigungen bearbeiten',
                 'description': 'Erlaubt die Bearbeitung von Berechtigungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             {
                 'codename': 'permission.delete',
                 'name': 'Berechtigungen löschen',
                 'description': 'Erlaubt das Löschen von Berechtigungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             {
                 'codename': 'permission.assign',
                 'name': 'Berechtigungen zuweisen',
                 'description': 'Erlaubt das Zuweisen von Berechtigungen an Benutzer',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             {
                 'codename': 'permission.check',
                 'name': 'Berechtigungen prüfen',
                 'description': 'Erlaubt das Prüfen von Benutzerberechtigungen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Berechtigungsverwaltung'
             },
             
@@ -399,42 +420,42 @@ class Command(BaseCommand):
                 'codename': 'role.create',
                 'name': 'Rollen erstellen',
                 'description': 'Erlaubt das Erstellen neuer Rollen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
             {
                 'codename': 'role.view',
                 'name': 'Rollen ansehen',
                 'description': 'Erlaubt das Ansehen von Rollen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
             {
                 'codename': 'role.edit',
                 'name': 'Rollen bearbeiten',
                 'description': 'Erlaubt die Bearbeitung von Rollen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
             {
                 'codename': 'role.delete',
                 'name': 'Rollen löschen',
                 'description': 'Erlaubt das Löschen von Rollen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
             {
                 'codename': 'role.assign',
                 'name': 'Rollen zuweisen',
                 'description': 'Erlaubt das Zuweisen von Rollen an Benutzer',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
             {
                 'codename': 'role.assign_permissions',
                 'name': 'Berechtigungen zu Rollen zuweisen',
                 'description': 'Erlaubt das Zuweisen von Berechtigungen zu Rollen',
-                'scope': 'global',
+                'scope': 'local',
                 'category': 'Rollenverwaltung'
             },
         ]
@@ -449,6 +470,7 @@ class Command(BaseCommand):
                     'name': perm_data['name'],
                     'description': perm_data['description'],
                     'scope': perm_data['scope'],
+                    'website': auth_website,  # Link to auth.palmdynamicx.de
                 }
             )
             
