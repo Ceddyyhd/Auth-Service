@@ -25,16 +25,16 @@ class UserRoleInline(admin.TabularInline):
     model = UserRole
     fk_name = 'user'  # Wichtig: Wir bearbeiten vom User aus, nicht vom assigned_by
     extra = 1
-    fields = ('role', 'website', 'assigned_at')
+    fields = ('role', 'scope', 'website', 'assigned_at')
     readonly_fields = ('assigned_at',)
     verbose_name = 'Rollenzuweisung'
     verbose_name_plural = '🎭 Rollen & Berechtigungen'
     
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "role":
-            # Zeige globale und lokale Rollen
+            # Zeige alle Rollen
             from permissions_system.models import Role
-            kwargs["queryset"] = Role.objects.all().order_by('scope', 'name')
+            kwargs["queryset"] = Role.objects.all().order_by('name')
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
@@ -52,7 +52,7 @@ class UserPermissionInline(admin.TabularInline):
         if db_field.name == "permission":
             # Zeige alle Berechtigungen
             from permissions_system.models import Permission
-            kwargs["queryset"] = Permission.objects.all().order_by('scope', 'name')
+            kwargs["queryset"] = Permission.objects.all().order_by('website', 'name')
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
