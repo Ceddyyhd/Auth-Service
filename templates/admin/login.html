@@ -306,7 +306,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Check MFA status when password is entered
-    function checkMFARequired() {
+function checkMFARequired() {
         const username = usernameField.value.trim();
         const password = passwordField.value.trim();
         
@@ -324,13 +324,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // The backend will handle validation
             if (mfaFieldContainer) {
                 mfaFieldContainer.classList.add('visible');
-                mfaField.focus();
+                if (mfaField) {
+                    mfaField.focus();
+                }
             }
             loadingSpinner.classList.remove('active');
             submitBtn.disabled = false;
             mfaChecked = true;
         }, 300);
     }
+
     
     // Trigger MFA check on password blur
     if (passwordField) {
