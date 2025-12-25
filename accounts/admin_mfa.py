@@ -17,17 +17,18 @@ class AdminMFAAuthenticationForm(AuthenticationForm):
     Custom authentication form for Django Admin with MFA support
     """
     mfa_token = forms.CharField(
-        label=_("MFA Token (falls aktiviert)"),
+        label=_("🔐 MFA-Code"),
         max_length=6,
         required=False,
         widget=forms.TextInput(attrs={
-            'placeholder': '6-stelliger Code',
+            'placeholder': '000000',
             'autocomplete': 'off',
             'class': 'vTextField',
             'maxlength': '6',
             'pattern': '[0-9]{6}',
+            'style': 'display:none;',  # Hidden by default
         }),
-        help_text=_("Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein, falls MFA aktiviert ist.")
+        help_text=_("Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein.")
     )
     
     def clean(self):

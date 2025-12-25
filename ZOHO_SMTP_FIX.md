@@ -142,10 +142,10 @@ EMAIL_HOST=smtppro.zoho.eu
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
 EMAIL_USE_SSL=False
-EMAIL_HOST_USER=c.schwieger@palmstudios.de
-EMAIL_HOST_PASSWORD=Adq5U@RzN9cGigU
-DEFAULT_FROM_EMAIL=c.schwieger@palmstudios.de  # ← HIER GEÄNDERT!
-SERVER_EMAIL=c.schwieger@palmstudios.de        # ← HIER GEÄNDERT!
+EMAIL_HOST_USER=
+EMAIL_HOST_PASSWORD=
+DEFAULT_FROM_EMAIL=  # ← HIER GEÄNDERT!
+SERVER_EMAIL=        # ← HIER GEÄNDERT!
 
 # Email URLs
 EMAIL_VERIFY_URL=https://deine-website.com/verify-email
