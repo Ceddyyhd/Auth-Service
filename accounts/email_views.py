@@ -100,13 +100,21 @@ class ResendVerificationEmailView(APIView):
 
 
 @extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name='token',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Email-Verifizierungs-Token aus der Bestätigungs-E-Mail (für GET)',
+        ),
+    ],
     request={
         'application/json': {
             'type': 'object',
             'properties': {
                 'token': {
                     'type': 'string',
-                    'description': 'Email-Verifizierungs-Token aus der Bestätigungs-E-Mail',
+                    'description': 'Email-Verifizierungs-Token aus der Bestätigungs-E-Mail (für POST)',
                     'example': 'abc123def456'
                 }
             },
@@ -117,20 +125,51 @@ class ResendVerificationEmailView(APIView):
         200: {'description': 'E-Mail erfolgreich verifiziert'},
         400: {'description': 'Ungültiger oder abgelaufener Token'}
     },
-    description='Verifiziert die E-Mail-Adresse des Benutzers mit einem Token.'
+    description='Verifiziert die E-Mail-Adresse des Benutzers mit einem Token. Unterstützt GET (Query-Parameter) und POST (JSON Body).'
 )
 class VerifyEmailView(APIView):
     """
     Verify user email with token.
     
-    POST /api/accounts/verify-email/
+    GET /api/accounts/verify-email/?token=verification_token (für E-Mail-Links)
+    POST /api/accounts/verify-email/ (für API-Calls)
     Body: {
         "token": "verification_token"
     }
     """
     permission_classes = (permissions.AllowAny,)
     
+    def get(self, request):
+        """Handle GET request from email link"""
+        token_str = request.GET.get('token')
+        
+        if not token_str:
+            return self._render_html_response(
+                success=False,
+                title="Token fehlt",
+                message="Kein Verifizierungs-Token gefunden.",
+                details="Bitte verwende den Link aus der Bestätigungs-E-Mail."
+            )
+        
+        result = self._verify_token(token_str)
+        
+        if result['success']:
+            return self._render_html_response(
+                success=True,
+                title="E-Mail verifiziert",
+                message="Deine E-Mail-Adresse wurde erfolgreich bestätigt!",
+                details=f"Du kannst dich jetzt mit {result['email']} anmelden."
+            )
+        else:
+            return self._render_html_response(
+                success=False,
+                title="Verifizierung fehlgeschlagen",
+                message=result['error'],
+                details="Bitte fordere eine neue Bestätigungs-E-Mail an."
+            )
+    
     def post(self, request):
+        """Handle POST request from API"""
         token_str = request.data.get('token')
         
         if not token_str:
@@ -138,17 +177,37 @@ class VerifyEmailView(APIView):
                 'error': 'Token ist erforderlich.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        result = self._verify_token(token_str)
+        
+        if result['success']:
+            return Response({
+                'message': 'E-Mail erfolgreich verifiziert.',
+                'user': {
+                    'id': result['user_id'],
+                    'email': result['email'],
+                    'is_verified': True
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': result['error']
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def _verify_token(self, token_str):
+        """Common token verification logic"""
         try:
             token = EmailVerificationToken.objects.get(token=token_str)
         except EmailVerificationToken.DoesNotExist:
-            return Response({
+            return {
+                'success': False,
                 'error': 'Ungültiger Token.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }
         
         if not token.is_valid():
-            return Response({
+            return {
+                'success': False,
                 'error': 'Token ist abgelaufen oder wurde bereits verwendet.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            }
         
         # Mark token as used
         token.is_used = True
@@ -159,14 +218,130 @@ class VerifyEmailView(APIView):
         user.is_verified = True
         user.save()
         
-        return Response({
-            'message': 'E-Mail erfolgreich verifiziert.',
-            'user': {
-                'id': str(user.id),
-                'email': user.email,
-                'is_verified': user.is_verified
-            }
-        }, status=status.HTTP_200_OK)
+        return {
+            'success': True,
+            'user_id': str(user.id),
+            'email': user.email
+        }
+    
+    def _render_html_response(self, success, title, message, details=""):
+        """Render HTML response for browser"""
+        from django.http import HttpResponse
+        
+        color = "#4CAF50" if success else "#f44336"
+        icon = "✅" if success else "❌"
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{title} - Auth Service</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background: linear-gradient(135deg, {'#667eea 0%, #764ba2 100%' if success else '#f093fb 0%, #f5576c 100%'});
+                    padding: 20px;
+                }}
+                .container {{
+                    background: white;
+                    padding: 50px 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    max-width: 500px;
+                    width: 100%;
+                    animation: slideIn 0.5s ease-out;
+                }}
+                @keyframes slideIn {{
+                    from {{
+                        opacity: 0;
+                        transform: translateY(-20px);
+                    }}
+                    to {{
+                        opacity: 1;
+                        transform: translateY(0);
+                    }}
+                }}
+                .icon {{
+                    font-size: 80px;
+                    margin-bottom: 20px;
+                    animation: bounce 1s ease-in-out;
+                }}
+                @keyframes bounce {{
+                    0%, 100% {{ transform: scale(1); }}
+                    50% {{ transform: scale(1.1); }}
+                }}
+                h1 {{
+                    color: {color};
+                    font-size: 32px;
+                    margin-bottom: 20px;
+                    font-weight: 700;
+                }}
+                .message {{
+                    font-size: 20px;
+                    color: #333;
+                    margin-bottom: 15px;
+                    line-height: 1.6;
+                }}
+                .details {{
+                    font-size: 16px;
+                    color: #666;
+                    line-height: 1.6;
+                    margin-bottom: 30px;
+                }}
+                .button {{
+                    display: inline-block;
+                    padding: 15px 40px;
+                    background: {color};
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 50px;
+                    font-size: 18px;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                }}
+                .button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #eee;
+                    color: #999;
+                    font-size: 14px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">{icon}</div>
+                <h1>{title}</h1>
+                <div class="message">{message}</div>
+                <div class="details">{details}</div>
+                <a href="/" class="button">Zur Startseite</a>
+                <div class="footer">
+                    © 2025 PalmDynamicX Auth Service
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        status_code = 200 if success else 400
+        return HttpResponse(html, status=status_code, content_type='text/html')
 
 
 @extend_schema(
@@ -261,6 +436,14 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 
 @extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name='token',
+            type=OpenApiTypes.STR,
+            location=OpenApiParameter.QUERY,
+            description='Passwort-Reset-Token aus der E-Mail (für GET)',
+        ),
+    ],
     request={
         'application/json': {
             'type': 'object',
@@ -290,13 +473,14 @@ class ResetPasswordSerializer(serializers.Serializer):
         200: {'description': 'Passwort erfolgreich zurückgesetzt'},
         400: {'description': 'Ungültiger Token oder Passwörter stimmen nicht überein'}
     },
-    description='Setzt das Passwort zurück mit einem Token aus der Reset-E-Mail.'
+    description='Setzt das Passwort zurück mit einem Token. Unterstützt GET (zeigt Formular) und POST (setzt Passwort zurück).'
 )
 class ResetPasswordView(APIView):
     """
     Reset password with token.
     
-    POST /api/accounts/reset-password/
+    GET /api/accounts/reset-password/?token=reset_token (zeigt HTML-Formular)
+    POST /api/accounts/reset-password/ (für API-Calls)
     Body: {
         "token": "reset_token",
         "new_password": "NewPassword123!",
@@ -304,6 +488,389 @@ class ResetPasswordView(APIView):
     }
     """
     permission_classes = (permissions.AllowAny,)
+    
+    def get(self, request):
+        """Show password reset form"""
+        from django.http import HttpResponse
+        
+        token = request.GET.get('token', '')
+        
+        # Validate token exists and is valid
+        token_valid = False
+        error_message = ""
+        
+        if token:
+            try:
+                token_obj = PasswordResetToken.objects.get(token=token)
+                if token_obj.is_valid():
+                    token_valid = True
+                else:
+                    error_message = "Der Link ist abgelaufen oder wurde bereits verwendet."
+            except PasswordResetToken.DoesNotExist:
+                error_message = "Ungültiger Link."
+        else:
+            error_message = "Kein Token gefunden."
+        
+        if not token_valid:
+            return self._render_error_html(error_message)
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Passwort zurücksetzen - Auth Service</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    padding: 20px;
+                }}
+                .container {{
+                    background: white;
+                    padding: 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    max-width: 500px;
+                    width: 100%;
+                    animation: slideIn 0.5s ease-out;
+                }}
+                @keyframes slideIn {{
+                    from {{
+                        opacity: 0;
+                        transform: translateY(-20px);
+                    }}
+                    to {{
+                        opacity: 1;
+                        transform: translateY(0);
+                    }}
+                }}
+                h1 {{
+                    color: #f5576c;
+                    font-size: 32px;
+                    margin-bottom: 10px;
+                    font-weight: 700;
+                    text-align: center;
+                }}
+                .subtitle {{
+                    text-align: center;
+                    color: #666;
+                    margin-bottom: 30px;
+                    font-size: 16px;
+                }}
+                .form-group {{
+                    margin-bottom: 25px;
+                }}
+                label {{
+                    display: block;
+                    margin-bottom: 8px;
+                    color: #333;
+                    font-weight: 600;
+                    font-size: 14px;
+                }}
+                input[type="password"] {{
+                    width: 100%;
+                    padding: 15px;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 10px;
+                    font-size: 16px;
+                    transition: all 0.3s ease;
+                }}
+                input[type="password"]:focus {{
+                    outline: none;
+                    border-color: #f5576c;
+                    box-shadow: 0 0 0 3px rgba(245, 87, 108, 0.1);
+                }}
+                button {{
+                    width: 100%;
+                    padding: 15px;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 18px;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+                }}
+                button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+                }}
+                button:active {{
+                    transform: translateY(0);
+                }}
+                button:disabled {{
+                    background: #ccc;
+                    cursor: not-allowed;
+                    transform: none;
+                }}
+                .message {{
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    display: none;
+                }}
+                .message.success {{
+                    background: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb;
+                    display: block;
+                }}
+                .message.error {{
+                    background: #f8d7da;
+                    color: #721c24;
+                    border: 1px solid #f5c6cb;
+                    display: block;
+                }}
+                .password-requirements {{
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 10px;
+                    margin-bottom: 20px;
+                    font-size: 13px;
+                }}
+                .password-requirements ul {{
+                    margin: 10px 0 0 20px;
+                    color: #666;
+                }}
+                .password-requirements li {{
+                    margin: 5px 0;
+                }}
+                .footer {{
+                    margin-top: 30px;
+                    padding-top: 20px;
+                    border-top: 1px solid #eee;
+                    text-align: center;
+                    color: #999;
+                    font-size: 14px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🔐 Passwort zurücksetzen</h1>
+                <div class="subtitle">Gib dein neues Passwort ein</div>
+                
+                <div id="message" class="message"></div>
+                
+                <div class="password-requirements">
+                    <strong>Passwort-Anforderungen:</strong>
+                    <ul>
+                        <li>Mindestens 8 Zeichen</li>
+                        <li>Nicht zu ähnlich zu deinen anderen Informationen</li>
+                        <li>Nicht ausschließlich numerisch</li>
+                    </ul>
+                </div>
+                
+                <form id="resetForm">
+                    <div class="form-group">
+                        <label for="password">Neues Passwort</label>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="new_password"
+                            required 
+                            minlength="8"
+                            placeholder="Mindestens 8 Zeichen"
+                        >
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirmPassword">Passwort bestätigen</label>
+                        <input 
+                            type="password" 
+                            id="confirmPassword" 
+                            name="new_password2"
+                            required
+                            placeholder="Passwort wiederholen"
+                        >
+                    </div>
+                    
+                    <button type="submit" id="submitBtn">Passwort zurücksetzen</button>
+                </form>
+                
+                <div class="footer">
+                    © 2025 PalmDynamicX Auth Service
+                </div>
+            </div>
+            
+            <script>
+                const form = document.getElementById('resetForm');
+                const submitBtn = document.getElementById('submitBtn');
+                const messageDiv = document.getElementById('message');
+                const token = '{token}';
+                
+                form.addEventListener('submit', async (e) => {{
+                    e.preventDefault();
+                    
+                    const password = document.getElementById('password').value;
+                    const confirmPassword = document.getElementById('confirmPassword').value;
+                    
+                    // Reset message
+                    messageDiv.className = 'message';
+                    messageDiv.textContent = '';
+                    
+                    // Validate passwords match
+                    if (password !== confirmPassword) {{
+                        showMessage('error', '❌ Passwörter stimmen nicht überein');
+                        return;
+                    }}
+                    
+                    // Disable button and show loading
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Wird verarbeitet...';
+                    
+                    try {{
+                        const response = await fetch(window.location.pathname, {{
+                            method: 'POST',
+                            headers: {{
+                                'Content-Type': 'application/json',
+                            }},
+                            body: JSON.stringify({{
+                                token: token,
+                                new_password: password,
+                                new_password2: confirmPassword
+                            }})
+                        }});
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {{
+                            showMessage('success', '✅ Passwort erfolgreich geändert! Weiterleitung...');
+                            form.style.display = 'none';
+                            
+                            // Redirect to home after 2 seconds
+                            setTimeout(() => {{
+                                window.location.href = '/';
+                            }}, 2000);
+                        }} else {{
+                            // Handle validation errors
+                            let errorMsg = '❌ ';
+                            if (data.error) {{
+                                errorMsg += data.error;
+                            }} else if (data.new_password) {{
+                                errorMsg += data.new_password.join(' ');
+                            }} else if (data.new_password2) {{
+                                errorMsg += data.new_password2.join(' ');
+                            }} else {{
+                                errorMsg += 'Fehler beim Zurücksetzen des Passworts';
+                            }}
+                            showMessage('error', errorMsg);
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Passwort zurücksetzen';
+                        }}
+                    }} catch (error) {{
+                        showMessage('error', '❌ Netzwerkfehler. Bitte versuche es erneut.');
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Passwort zurücksetzen';
+                    }}
+                }});
+                
+                function showMessage(type, text) {{
+                    messageDiv.className = `message ${{type}}`;
+                    messageDiv.textContent = text;
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        
+        return HttpResponse(html, content_type='text/html')
+    
+    def _render_error_html(self, error_message):
+        """Render error page"""
+        from django.http import HttpResponse
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Fehler - Auth Service</title>
+            <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 100vh;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    padding: 20px;
+                }}
+                .container {{
+                    background: white;
+                    padding: 50px 40px;
+                    border-radius: 20px;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    text-align: center;
+                    max-width: 500px;
+                    width: 100%;
+                }}
+                .icon {{
+                    font-size: 80px;
+                    margin-bottom: 20px;
+                }}
+                h1 {{
+                    color: #f44336;
+                    font-size: 32px;
+                    margin-bottom: 20px;
+                    font-weight: 700;
+                }}
+                .message {{
+                    font-size: 18px;
+                    color: #666;
+                    margin-bottom: 30px;
+                    line-height: 1.6;
+                }}
+                .button {{
+                    display: inline-block;
+                    padding: 15px 40px;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 50px;
+                    font-size: 18px;
+                    font-weight: 600;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                }}
+                .button:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="icon">❌</div>
+                <h1>Link ungültig</h1>
+                <div class="message">{error_message}</div>
+                <a href="/" class="button">Zur Startseite</a>
+            </div>
+        </body>
+        </html>
+        """
+        
+        return HttpResponse(html, status=400, content_type='text/html')
     
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
