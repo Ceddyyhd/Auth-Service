@@ -1,6 +1,22 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.admin import AdminSite
 from .models import User, Website, UserSession, SocialAccount, EmailVerificationToken, PasswordResetToken, MFADevice, SSOToken
+from .admin_mfa import AdminMFAAuthenticationForm
+
+
+class MFAAdminSite(AdminSite):
+    """Custom Admin Site with MFA support"""
+    site_header = "🔐 PalmDynamicX Auth Service Administration (MFA-geschützt)"
+    site_title = "Auth Service Admin"
+    index_title = "Willkommen im Auth Service Dashboard"
+    login_form = AdminMFAAuthenticationForm
+    login_template = 'admin/login.html'
+
+
+# Ersetze die Standard-Admin-Site mit unserer MFA-geschützten Version
+admin.site = MFAAdminSite()
+admin.sites.site = admin.site
 
 
 class UserRoleInline(admin.TabularInline):

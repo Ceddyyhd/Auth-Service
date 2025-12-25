@@ -4,7 +4,11 @@ from .models import Permission, Role, UserRole, UserPermission
 
 
 # Verstecke Django's verwirrende Groups - wir nutzen unser eigenes System
-admin.site.unregister(Group)
+# Prüfe erst ob Group registriert ist, bevor wir es entfernen
+try:
+    admin.site.unregister(Group)
+except admin.sites.NotRegistered:
+    pass  # Bereits entfernt oder nie registriert
 
 
 class RolePermissionInline(admin.TabularInline):

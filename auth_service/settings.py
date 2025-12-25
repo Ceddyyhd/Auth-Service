@@ -257,8 +257,19 @@ EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.conso
 EMAIL_HOST = config('EMAIL_HOST', default='')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)  # Für Port 465
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@example.com')
+SERVER_EMAIL = config('SERVER_EMAIL', default=config('DEFAULT_FROM_EMAIL', default='noreply@example.com'))
+
+# Email URLs für Verification und Password Reset
+EMAIL_VERIFY_URL = config('EMAIL_VERIFY_URL', default='http://localhost:3000/verify-email')
+PASSWORD_RESET_URL = config('PASSWORD_RESET_URL', default='http://localhost:3000/reset-password')
+
+# Email Token Expiry
+EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS = config('EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS', default=24, cast=int)
+PASSWORD_RESET_TOKEN_EXPIRY_HOURS = config('PASSWORD_RESET_TOKEN_EXPIRY_HOURS', default=1, cast=int)
 
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
@@ -333,6 +344,7 @@ SPECTACULAR_SETTINGS = {
 
 # Django Allauth Settings
 AUTHENTICATION_BACKENDS = [
+    'accounts.admin_mfa.AdminMFABackend',  # Custom MFA backend for admin
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]

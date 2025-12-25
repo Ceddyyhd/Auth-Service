@@ -1,0 +1,96 @@
+{% extends "admin/login.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .mfa-help-text {
+        display: block;
+        margin-top: 5px;
+        font-size: 12px;
+        color: #666;
+    }
+    
+    .mfa-field {
+        margin-top: 15px;
+    }
+    
+    .mfa-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        border-radius: 4px;
+        padding: 10px;
+        margin: 15px 0;
+        color: #856404;
+    }
+    
+    .mfa-success {
+        background-color: #d4edda;
+        border: 1px solid #28a745;
+        border-radius: 4px;
+        padding: 10px;
+        margin: 15px 0;
+        color: #155724;
+    }
+    
+    input[name="mfa_token"] {
+        font-family: monospace;
+        font-size: 18px;
+        letter-spacing: 3px;
+        text-align: center;
+        width: 100%;
+    }
+    
+    .form-row.mfa-field label {
+        font-weight: bold;
+        color: #417690;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="mfa-warning">
+        <strong>🔒 Sicherheitshinweis:</strong> Wenn Sie Multi-Factor Authentication (MFA) aktiviert haben, 
+        geben Sie bitte zusätzlich zu Ihren Anmeldedaten den 6-stelligen Code aus Ihrer Authenticator-App ein.
+    </div>
+    
+    {{ block.super }}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-focus auf MFA-Feld wenn Passwort ausgefüllt ist
+    const passwordField = document.querySelector('input[name="password"]');
+    const mfaField = document.querySelector('input[name="mfa_token"]');
+    
+    if (passwordField && mfaField) {
+        passwordField.addEventListener('input', function() {
+            if (this.value.length > 0) {
+                // Zeige Hinweis
+                const helpText = document.createElement('div');
+                helpText.className = 'mfa-help-text';
+                helpText.innerHTML = '💡 <strong>Tipp:</strong> Wenn Sie MFA aktiviert haben, geben Sie den Code unten ein.';
+                
+                if (!document.querySelector('.mfa-help-text')) {
+                    mfaField.parentElement.appendChild(helpText);
+                }
+            }
+        });
+        
+        // Auto-format MFA input (nur Zahlen erlauben)
+        mfaField.addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '').substring(0, 6);
+        });
+        
+        // Enter-Taste im Passwort-Feld sollte nicht direkt submitten
+        passwordField.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                mfaField.focus();
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

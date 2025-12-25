@@ -347,16 +347,20 @@ class ResetPasswordView(APIView):
 
 
 @api_view(['POST'])
+@api_view(['POST'])
 @permission_classes([permissions.IsAdminUser])
 def test_smtp_configuration(request):
     """
-    Test SMTP configuration by sending a test email.
+    Test SMTP configuration by sending a test email with detailed debugging.
     
     POST /api/accounts/test-smtp/
     Body: {
         "recipient_email": "test@example.com"
     }
     """
+    import smtplib
+    import socket
+    
     recipient_email = request.data.get('recipient_email')
     
     if not recipient_email:
@@ -364,28 +368,126 @@ def test_smtp_configuration(request):
             'error': 'Empfänger E-Mail-Adresse ist erforderlich.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
+    # Collect configuration details
+    smtp_config = {
+        'backend': settings.EMAIL_BACKEND,
+        'host': settings.EMAIL_HOST,
+        'port': settings.EMAIL_PORT,
+        'use_tls': settings.EMAIL_USE_TLS,
+        'use_ssl': getattr(settings, 'EMAIL_USE_SSL', False),
+        'from_email': settings.DEFAULT_FROM_EMAIL,
+        'host_user': settings.EMAIL_HOST_USER,
+        'password_configured': bool(settings.EMAIL_HOST_PASSWORD),
+        'password_length': len(settings.EMAIL_HOST_PASSWORD) if settings.EMAIL_HOST_PASSWORD else 0,
+    }
+    
+    debug_info = []
+    
+    # Step 1: Test DNS resolution
     try:
-        send_test_email(recipient_email)
+        socket.gethostbyname(settings.EMAIL_HOST)
+        debug_info.append(f"✅ DNS Resolution: {settings.EMAIL_HOST} ist erreichbar")
+    except socket.gaierror as e:
+        debug_info.append(f"❌ DNS Resolution Fehler: {str(e)}")
         return Response({
-            'message': f'Test-E-Mail erfolgreich an {recipient_email} gesendet.',
-            'smtp_config': {
-                'host': settings.EMAIL_HOST,
-                'port': settings.EMAIL_PORT,
-                'use_tls': settings.EMAIL_USE_TLS,
-                'use_ssl': settings.EMAIL_USE_SSL,
-                'from_email': settings.DEFAULT_FROM_EMAIL
-            }
-        }, status=status.HTTP_200_OK)
+            'error': 'SMTP Host konnte nicht aufgelöst werden',
+            'smtp_config': smtp_config,
+            'debug_info': debug_info
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    # Step 2: Test connection
+    try:
+        if settings.EMAIL_USE_SSL:
+            server = smtplib.SMTP_SSL(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10)
+            debug_info.append(f"✅ SSL Verbindung zu {settings.EMAIL_HOST}:{settings.EMAIL_PORT} erfolgreich")
+        else:
+            server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=10)
+            debug_info.append(f"✅ SMTP Verbindung zu {settings.EMAIL_HOST}:{settings.EMAIL_PORT} erfolgreich")
+            
+            if settings.EMAIL_USE_TLS:
+                server.starttls()
+                debug_info.append("✅ TLS STARTTLS erfolgreich")
+        
+        # Step 3: Test authentication
+        try:
+            server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
+            debug_info.append(f"✅ SMTP Authentifizierung erfolgreich für: {settings.EMAIL_HOST_USER}")
+        except smtplib.SMTPAuthenticationError as e:
+            error_code = e.smtp_code
+            error_msg = e.smtp_error.decode() if isinstance(e.smtp_error, bytes) else str(e.smtp_error)
+            debug_info.append(f"❌ Authentifizierung fehlgeschlagen (Code {error_code}): {error_msg}")
+            
+            # Provide specific help based on the host
+            if 'gmail' in settings.EMAIL_HOST.lower():
+                debug_info.append("💡 Gmail Lösung: Verwende ein App-Passwort statt deinem normalen Passwort")
+                debug_info.append("   1. Gehe zu: https://myaccount.google.com/apppasswords")
+                debug_info.append("   2. Erstelle ein neues App-Passwort für 'Mail'")
+                debug_info.append("   3. Verwende das 16-stellige Passwort OHNE Leerzeichen")
+            elif 'outlook' in settings.EMAIL_HOST.lower() or 'office365' in settings.EMAIL_HOST.lower():
+                debug_info.append("💡 Outlook/Office365 Lösung:")
+                debug_info.append("   - Stelle sicher, dass SMTP AUTH aktiviert ist")
+                debug_info.append("   - Verwende moderne Authentifizierung wenn möglich")
+            
+            server.quit()
+            return Response({
+                'error': f'SMTP Authentifizierung fehlgeschlagen: {error_msg}',
+                'error_code': error_code,
+                'smtp_config': smtp_config,
+                'debug_info': debug_info,
+                'troubleshooting_guide': 'Siehe EMAIL_TROUBLESHOOTING.md für detaillierte Lösungen'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Step 4: Send test email
+        try:
+            from django.core.mail import send_mail
+            
+            send_mail(
+                subject='🧪 SMTP Test - Auth Service',
+                message='Dies ist eine Test-E-Mail vom Auth Service.\n\nWenn du diese E-Mail erhältst, funktioniert die SMTP-Konfiguration korrekt!',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[recipient_email],
+                fail_silently=False,
+            )
+            debug_info.append(f"✅ Test-E-Mail erfolgreich an {recipient_email} gesendet")
+            
+            server.quit()
+            
+            return Response({
+                'success': True,
+                'message': f'✅ SMTP Test erfolgreich! E-Mail wurde an {recipient_email} gesendet.',
+                'smtp_config': smtp_config,
+                'debug_info': debug_info
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            debug_info.append(f"❌ Fehler beim Senden der E-Mail: {str(e)}")
+            server.quit()
+            raise
+            
+    except smtplib.SMTPConnectError as e:
+        debug_info.append(f"❌ Verbindungsfehler: {str(e)}")
+        debug_info.append("💡 Prüfe: Firewall-Regeln, Port-Verfügbarkeit, Netzwerkverbindung")
+        return Response({
+            'error': f'SMTP Verbindung fehlgeschlagen: {str(e)}',
+            'smtp_config': smtp_config,
+            'debug_info': debug_info
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    except socket.timeout:
+        debug_info.append("❌ Verbindungs-Timeout")
+        debug_info.append("💡 Server antwortet nicht. Prüfe: Host, Port, Firewall")
+        return Response({
+            'error': 'SMTP Server Timeout - keine Antwort vom Server',
+            'smtp_config': smtp_config,
+            'debug_info': debug_info
+        }, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        
     except Exception as e:
+        debug_info.append(f"❌ Unerwarteter Fehler: {str(e)}")
         return Response({
-            'error': f'Fehler beim Senden der Test-E-Mail: {str(e)}',
-            'smtp_config': {
-                'host': settings.EMAIL_HOST,
-                'port': settings.EMAIL_PORT,
-                'use_tls': settings.EMAIL_USE_TLS,
-                'use_ssl': settings.EMAIL_USE_SSL,
-                'from_email': settings.DEFAULT_FROM_EMAIL
-            }
+            'error': f'Fehler beim SMTP Test: {str(e)}',
+            'smtp_config': smtp_config,
+            'debug_info': debug_info
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
