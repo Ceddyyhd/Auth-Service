@@ -249,30 +249,53 @@ class WebsiteAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'auto_register_users', 'require_address', 
                    'require_phone', 'created_at')
     search_fields = ('name', 'domain')
-    readonly_fields = ('api_key', 'api_secret', 'client_id', 'client_secret', 'created_at', 'updated_at')
     
-    fieldsets = (
-        ('🌐 Allgemeine Informationen', {
-            'fields': ('name', 'domain', 'callback_url', 'allowed_origins')
-        }),
-        ('🔑 API Credentials', {
-            'fields': ('api_key', 'api_secret', 'client_id', 'client_secret'),
-            'classes': ('collapse',),
-            'description': '⚠️ Diese Credentials werden für die API-Integration benötigt. API Secret nur einmal kopieren!'
-        }),
-        ('⚙️ Einstellungen', {
-            'fields': ('is_active', 'auto_register_users', 'require_email_verification')
-        }),
-        ('📝 Pflichtfelder bei Registrierung', {
-            'fields': ('require_first_name', 'require_last_name', 'require_phone',
-                      'require_address', 'require_date_of_birth', 'require_company'),
-            'description': 'Wähle, welche Felder bei der Registrierung auf dieser Website erforderlich sind'
-        }),
-        ('📅 Zeitstempel', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
+    def get_readonly_fields(self, request, obj=None):
+        """API Credentials nur beim Bearbeiten readonly, nicht beim Erstellen."""
+        if obj:  # Bearbeiten
+            return ('api_key', 'api_secret', 'client_id', 'client_secret', 'created_at', 'updated_at')
+        return ('created_at', 'updated_at')  # Erstellen - API Keys werden automatisch generiert
+    
+    def get_fieldsets(self, request, obj=None):
+        """Passe Fieldsets an abhängig davon ob wir erstellen oder bearbeiten."""
+        if obj:  # Bearbeiten - zeige API Credentials
+            return (
+                ('🌐 Allgemeine Informationen', {
+                    'fields': ('name', 'domain', 'callback_url', 'allowed_origins')
+                }),
+                ('🔑 API Credentials', {
+                    'fields': ('api_key', 'api_secret', 'client_id', 'client_secret'),
+                    'classes': ('collapse',),
+                    'description': '⚠️ Diese Credentials werden automatisch generiert. API Secret nur einmal kopieren!'
+                }),
+                ('⚙️ Einstellungen', {
+                    'fields': ('is_active', 'auto_register_users', 'require_email_verification')
+                }),
+                ('📝 Pflichtfelder bei Registrierung', {
+                    'fields': ('require_first_name', 'require_last_name', 'require_phone',
+                              'require_address', 'require_date_of_birth', 'require_company'),
+                    'description': 'Wähle, welche Felder bei der Registrierung auf dieser Website erforderlich sind'
+                }),
+                ('📅 Zeitstempel', {
+                    'fields': ('created_at', 'updated_at'),
+                    'classes': ('collapse',)
+                }),
+            )
+        else:  # Erstellen - verstecke API Credentials
+            return (
+                ('🌐 Allgemeine Informationen', {
+                    'fields': ('name', 'domain', 'callback_url', 'allowed_origins'),
+                    'description': '✨ API Credentials (api_key, api_secret, client_id, client_secret) werden automatisch generiert!'
+                }),
+                ('⚙️ Einstellungen', {
+                    'fields': ('is_active', 'auto_register_users', 'require_email_verification')
+                }),
+                ('📝 Pflichtfelder bei Registrierung', {
+                    'fields': ('require_first_name', 'require_last_name', 'require_phone',
+                              'require_address', 'require_date_of_birth', 'require_company'),
+                    'description': 'Wähle, welche Felder bei der Registrierung auf dieser Website erforderlich sind'
+                }),
+            )
     
     def get_users_count(self, obj):
         """Anzahl Benutzer mit Zugriff auf diese Website"""
