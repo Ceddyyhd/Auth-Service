@@ -75,12 +75,25 @@ class Command(BaseCommand):
         skipped_count = 0
         
         self.stdout.write(f'\nSynchronisiere {total_users} Benutzer mit Lexware...\n')
+        self.stdout.write('⏱️  Rate Limit: 2 Anfragen/Sekunde - Dies kann etwas dauern...\n')
         
         for user in users:
             user_info = f"{user.email} (ID: {user.id})"
             
             # Erstelle fehlende Kontakte
             if create_missing and not user.lexware_contact_id:
+                # Validiere Daten vor Erstellung
+                is_valid, error_msg = lexware.validate_user_data(user)
+                
+                if not is_valid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'⊘ Übersprungen: {user_info} - {error_msg}'
+                        )
+                    )
+                    skipped_count += 1
+                    continue
+                
                 try:
                     if dry_run:
                         self.stdout.write(

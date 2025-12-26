@@ -5,6 +5,7 @@ Erstellt automatisch Kundenkontakte in Lexware bei der Benutzerregistrierung.
 
 import requests
 import logging
+import time
 from django.conf import settings
 from typing import Optional, Dict, Any
 
@@ -45,15 +46,19 @@ class LexwareIntegration:
         self, 
         method: str, 
         endpoint: str, 
-        data: Optional[Dict] = None
+        data: Optional[Dict] = None,
+        max_retries: int = 3,
+        retry_delay: float = 0.5
     ) -> Dict[str, Any]:
         """
-        Führt einen API-Request aus.
+        Führt einen API-Request aus mit automatischem Rate Limiting.
         
         Args:
             method: HTTP Methode (GET, POST, PUT, DELETE)
             endpoint: API Endpoint (z.B. '/contacts')
             data: Request Body für POST/PUT
+            max_retries: Maximale Anzahl von Wiederholungsversuchen bei Rate Limit (429)
+            retry_delay: Wartezeit zwischen Versuchen in Sekunden (Standard: 0.5s = 2 req/s)
             
         Returns:
             API Response als Dictionary
@@ -62,53 +67,130 @@ class LexwareIntegration:
             LexwareAPIError: Bei API-Fehlern
         """
         url = f"{self.BASE_URL}{endpoint}"
+        last_error = None
         
-        try:
-            if method.upper() == 'GET':
-                response = requests.get(url, headers=self.headers)
-            elif method.upper() == 'POST':
-                response = requests.post(url, headers=self.headers, json=data)
-            elif method.upper() == 'PUT':
-                response = requests.put(url, headers=self.headers, json=data)
-            elif method.upper() == 'DELETE':
-                response = requests.delete(url, headers=self.headers)
-            else:
-                raise ValueError(f"Ungültige HTTP-Methode: {method}")
-            
-            response.raise_for_status()
-            
-            # Bei 204 No Content gibt es keinen Response Body
-            if response.status_code == 204:
-                return {}
-            
-            return response.json()
-            
-        except requests.exceptions.HTTPError as e:
-            error_msg = f"Lexware API Fehler ({response.status_code}): {response.text}"
+        for attempt in range(max_retries + 1):
+            try:
+                if method.upper() == 'GET':
+                    response = requests.get(url, headers=self.headers)
+                elif method.upper() == 'POST':
+                    response = requests.post(url, headers=self.headers, json=data)
+                elif method.upper() == 'PUT':
+                    response = requests.put(url, headers=self.headers, json=data)
+                elif method.upper() == 'DELETE':
+                    response = requests.delete(url, headers=self.headers)
+                else:
+                    raise ValueError(f"Ungültige HTTP-Methode: {method}")
+                
+                # Rate Limit (429) - automatisch wiederholen
+                if response.status_code == 429:
+                    if attempt < max_retries:
+                        wait_time = retry_delay * (attempt + 1)  # Exponentielles Backoff
+                        logger.warning(
+                            f"Rate Limit erreicht (429). Warte {wait_time}s und versuche erneut "
+                            f"(Versuch {attempt + 1}/{max_retries})..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        error_msg = f"Lexware API Rate Limit ({response.status_code}): {response.text}"
+                        logger.error(f"{error_msg} - Alle Wiederholungsversuche aufgebraucht")
+                        raise LexwareAPIError(error_msg)
+                
+                response.raise_for_status()
+                
+                # Bei 204 No Content gibt es keinen Response Body
+                if response.status_code == 204:
+                    return {}
+                
+                # Erfolg - warte kurz für Rate Limiting (2 req/s)
+                time.sleep(retry_delay)
+                return response.json()
+                
+            except requests.exceptions.HTTPError as e:
+                if response.status_code != 429:  # Nicht-429 Fehler sofort werfen
+                    error_msg = f"Lexware API Fehler ({response.status_code}): {response.text}"
+                    logger.error(error_msg)
+                    raise LexwareAPIError(error_msg) from e
+                last_error = e
+            except requests.exceptions.RequestException as e:
+                error_msg = f"Lexware API Verbindungsfehler: {str(e)}"
+                logger.error(error_msg)
+                raise LexwareAPIError(error_msg) from e
+        
+        # Falls wir hier ankommen, wurden alle Retries aufgebraucht
+        if last_error:
+            error_msg = f"Lexware API Fehler nach {max_retries} Wiederholungen: {str(last_error)}"
             logger.error(error_msg)
-            raise LexwareAPIError(error_msg) from e
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Lexware API Verbindungsfehler: {str(e)}"
-            logger.error(error_msg)
-            raise LexwareAPIError(error_msg) from e
+            raise LexwareAPIError(error_msg) from last_error
     
-    def create_customer_contact(self, user) -> Dict[str, Any]:
+    def validate_user_data(self, user) -> tuple[bool, str]:
         """
-        Erstellt einen neuen Kundenkontakt in Lexware.
+        Prüft ob Benutzerdaten vollständig genug für Lexware-Kontakt sind.
         
         Args:
             user: User-Objekt aus Django
             
         Returns:
+            (is_valid, error_message): Tuple mit Validierungsstatus und Fehlermeldung
+        """
+        missing_fields = []
+        
+        # Mindestanforderungen für Lexware-Kontakt
+        if not user.email:
+            missing_fields.append("E-Mail")
+        
+        # Entweder Vorname+Nachname ODER Firma muss vorhanden sein
+        if user.company:
+            # Firmenkunde - Firma ist Pflicht
+            if not user.company.strip():
+                missing_fields.append("Firmenname")
+        else:
+            # Privatkunde - Nachname ist Pflicht (Vorname optional)
+            if not user.last_name and not user.first_name:
+                missing_fields.append("Vor- oder Nachname")
+        
+        # Adresse für ordentliche Rechnung (empfohlen, aber nicht zwingend)
+        address_incomplete = not (user.city and user.postal_code)
+        
+        if missing_fields:
+            error_msg = f"Fehlende Pflichtfelder: {', '.join(missing_fields)}"
+            return False, error_msg
+        
+        if address_incomplete:
+            warning_msg = "Hinweis: Adresse unvollständig (Stadt/PLZ fehlen)"
+            logger.warning(f"Benutzer {user.email}: {warning_msg}")
+            # Trotzdem erlauben, aber warnen
+        
+        return True, ""
+    
+    def create_customer_contact(self, user, force: bool = False) -> Dict[str, Any]:
+        """
+        Erstellt einen neuen Kundenkontakt in Lexware.
+        
+        Args:
+            user: User-Objekt aus Django
+            force: Ignoriert Datenvalidierung (Standard: False)
+            
+        Returns:
             Dictionary mit Kontakt-Daten inkl. ID und Kundennummer
             
         Raises:
-            LexwareAPIError: Bei API-Fehlern
+            LexwareAPIError: Bei API-Fehlern oder unvollständigen Daten
         """
         # Prüfe ob Benutzer bereits einen Lexware-Kontakt hat
         if user.lexware_contact_id:
             logger.info(f"Benutzer {user.email} hat bereits einen Lexware-Kontakt")
             return self.get_contact(user.lexware_contact_id)
+        
+        # Validiere Benutzerdaten (außer bei force=True)
+        if not force:
+            is_valid, error_msg = self.validate_user_data(user)
+            if not is_valid:
+                raise LexwareAPIError(
+                    f"Benutzerdaten unvollständig für Lexware-Kontakt: {error_msg}. "
+                    "Bitte vervollständige das Profil."
+                )
         
         # Bereite Kontaktdaten vor
         contact_data = {

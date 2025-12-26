@@ -123,6 +123,34 @@ class User(AbstractBaseUser, PermissionsMixin):
         if self.is_superuser:
             return True
         return self.allowed_websites.filter(id=website.id).exists()
+    
+    def is_ready_for_lexware(self):
+        """Prüft ob Benutzerdaten vollständig genug für Lexware-Kontakt sind."""
+        # E-Mail ist Pflicht
+        if not self.email:
+            return False
+        
+        # Entweder Firma ODER Name muss vorhanden sein
+        if self.company:
+            return bool(self.company.strip())
+        else:
+            return bool(self.last_name or self.first_name)
+    
+    def get_lexware_missing_fields(self):
+        """Gibt Liste der fehlenden Felder für Lexware-Kontakt zurück."""
+        missing = []
+        
+        if not self.email:
+            missing.append('E-Mail')
+        
+        if not self.company and not (self.last_name or self.first_name):
+            missing.append('Name oder Firma')
+        
+        # Optional aber empfohlen
+        if not (self.city and self.postal_code):
+            missing.append('Adresse (Stadt/PLZ) [empfohlen]')
+        
+        return missing
 
 
 class Website(models.Model):

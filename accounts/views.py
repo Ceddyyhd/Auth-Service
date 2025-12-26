@@ -134,14 +134,29 @@ class RegisterView(generics.CreateAPIView):
         except Exception as e:
             verification_sent = False
         
-        # Erstelle Lexware-Kontakt (asynchron, ohne Registrierung zu blockieren)
+        # Erstelle Lexware-Kontakt (nur wenn Daten vollständig genug sind)
         lexware_customer_number = None
         lexware_error = None
         try:
             from .lexware_integration import get_lexware_client, LexwareAPIError
             lexware = get_lexware_client()
-            contact = lexware.create_customer_contact(user)
-            lexware_customer_number = user.lexware_customer_number
+            
+            # Prüfe ob Daten für Lexware-Kontakt ausreichend sind
+            is_valid, error_msg = lexware.validate_user_data(user)
+            
+            if is_valid:
+                # Daten sind vollständig - erstelle Kontakt
+                contact = lexware.create_customer_contact(user)
+                lexware_customer_number = user.lexware_customer_number
+            else:
+                # Daten unvollständig - nur loggen, nicht blockieren
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    f"Lexware-Kontakt für {user.email} übersprungen: {error_msg}. "
+                    "Kann später nachträglich erstellt werden."
+                )
+                lexware_error = "Profil unvollständig für Lexware (kann später nachgeholt werden)"
         except LexwareAPIError as e:
             # Logge Fehler, aber blockiere Registrierung nicht
             import logging

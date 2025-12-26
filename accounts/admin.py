@@ -148,20 +148,40 @@ class UserAdmin(BaseUserAdmin):
         lexware = get_lexware_client()
         success_count = 0
         error_count = 0
+        skipped_count = 0
         
         for user in users_without_contact:
+            # Validiere Daten
+            is_valid, error_msg = lexware.validate_user_data(user)
+            
+            if not is_valid:
+                self.message_user(
+                    request, 
+                    f"⊘ {user.email} übersprungen: {error_msg}", 
+                    'warning'
+                )
+                skipped_count += 1
+                continue
+            
             try:
                 lexware.create_customer_contact(user)
                 success_count += 1
             except (LexwareAPIError, Exception) as e:
                 error_count += 1
-                self.message_user(request, f"Fehler bei {user.email}: {str(e)}", 'error')
+                self.message_user(request, f"✗ Fehler bei {user.email}: {str(e)}", 'error')
         
         if success_count > 0:
             self.message_user(
                 request, 
                 f"✓ {success_count} Lexware-Kontakt(e) erfolgreich erstellt.", 
                 'success'
+            )
+        
+        if skipped_count > 0:
+            self.message_user(
+                request,
+                f"⊘ {skipped_count} Benutzer übersprungen (unvollständige Daten).",
+                'warning'
             )
         
         if error_count > 0:
