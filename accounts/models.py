@@ -203,8 +203,19 @@ class Website(models.Model):
         verbose_name='API Secret',
         help_text='Geheimer API Key - NUR für Server-seitige Anfragen!'
     )
-    client_id = models.CharField(max_length=255, unique=True, verbose_name='Client ID')
-    client_secret = models.CharField(max_length=255, verbose_name='Client Secret')
+    client_id = models.CharField(
+        max_length=255, 
+        unique=True, 
+        blank=True,
+        verbose_name='Client ID',
+        help_text='OAuth2 Client ID für SSO'
+    )
+    client_secret = models.CharField(
+        max_length=255, 
+        blank=True,
+        verbose_name='Client Secret',
+        help_text='OAuth2 Client Secret für SSO'
+    )
     
     # Settings
     is_active = models.BooleanField(default=True, verbose_name='Aktiv')
@@ -236,17 +247,23 @@ class Website(models.Model):
         return f"{self.name} ({self.domain})"
     
     def save(self, *args, **kwargs):
-        """Generate API keys if not set."""
+        """Generate API keys and client credentials if not set."""
         if not self.api_key:
             self.api_key = f"pk_{secrets.token_urlsafe(32)}"
         if not self.api_secret:
             self.api_secret = f"sk_{secrets.token_urlsafe(32)}"
+        if not self.client_id:
+            self.client_id = f"client_{secrets.token_urlsafe(32)}"
+        if not self.client_secret:
+            self.client_secret = secrets.token_urlsafe(48)
         super().save(*args, **kwargs)
     
     def regenerate_api_keys(self):
         """Regenerate API credentials (use with caution!)."""
         self.api_key = f"pk_{secrets.token_urlsafe(32)}"
         self.api_secret = f"sk_{secrets.token_urlsafe(32)}"
+        self.client_id = f"client_{secrets.token_urlsafe(32)}"
+        self.client_secret = secrets.token_urlsafe(48)
         self.save()
         return f"{self.name} ({self.domain})"
 
