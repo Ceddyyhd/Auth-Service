@@ -21,7 +21,6 @@ class PermissionSerializer(serializers.ModelSerializer):
 class RoleSerializer(serializers.ModelSerializer):
     """Serializer for roles."""
     
-    website_name = serializers.CharField(source='website.name', read_only=True, allow_null=True)
     permissions = PermissionSerializer(many=True, read_only=True)
     permission_ids = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -33,9 +32,9 @@ class RoleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Role
-        fields = ('id', 'name', 'description', 'scope', 'website', 
-                  'website_name', 'permissions', 'permission_ids', 'created_at')
-        read_only_fields = ('id', 'created_at')
+        fields = ('id', 'name', 'description', 'permissions', 'permission_ids', 
+                  'created_at', 'updated_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class UserRoleSerializer(serializers.ModelSerializer):
