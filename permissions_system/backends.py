@@ -35,16 +35,15 @@ class CustomPermissionBackend(BaseBackend):
         # Import here to avoid circular imports
         from .models import UserPermission, UserRole
         
-        # Parse the permission
-        if '.' in perm:
-            app_label, codename = perm.split('.', 1)
-        else:
-            codename = perm
+        # The permission codename can be in two formats:
+        # 1. 'app_label.codename' (e.g., 'accounts.view_user')
+        # 2. Just 'codename' (e.g., 'view_user')
+        # Our database stores the full format with app_label, so we need to match accordingly
         
         # Check direct permissions (UserPermission)
         direct_perms = UserPermission.objects.filter(
             user=user_obj,
-            permission__codename=codename,
+            permission__codename=perm,  # Match the full permission string
             granted=True
         ).select_related('permission')
         
@@ -61,7 +60,7 @@ class CustomPermissionBackend(BaseBackend):
         for user_role in user_roles:
             # Check if any permission in this role matches
             for permission in user_role.role.permissions.all():
-                if permission.codename == codename:
+                if permission.codename == perm:
                     return True
         
         return False
@@ -127,6 +126,7 @@ class CustomPermissionBackend(BaseBackend):
         
         for user_perm in direct_perms:
             if user_perm.is_active():
+                # Use the codename as-is (already includes app_label if present)
                 permissions.add(user_perm.permission.codename)
         
         # Get permissions from roles
@@ -136,6 +136,7 @@ class CustomPermissionBackend(BaseBackend):
         
         for user_role in user_roles:
             for permission in user_role.role.permissions.all():
+                # Use the codename as-is (already includes app_label if present)
                 permissions.add(permission.codename)
         
         return permissions
@@ -166,6 +167,7 @@ class CustomPermissionBackend(BaseBackend):
         
         for user_role in user_roles:
             for permission in user_role.role.permissions.all():
+                # Use the codename as-is (already includes app_label if present)
                 permissions.add(permission.codename)
         
         return permissions
