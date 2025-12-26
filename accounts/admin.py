@@ -628,42 +628,54 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     def formatted_request(self, obj):
         """Pretty formatted request body"""
         if not obj or not obj.request_body:
-            return '-'
+            return format_html('<span style="color: #999;">— Kein Request Body —</span>')
         
         try:
             import json
             data = json.loads(obj.request_body)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
-        except:
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', obj.request_body)
+            if formatted and formatted.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 400px; overflow: auto;">{}</pre>', formatted)
+            return format_html('<span style="color: #999;">— Leerer Request Body —</span>')
+        except Exception as e:
+            if obj.request_body and obj.request_body.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 400px; overflow: auto;">{}</pre>', obj.request_body)
+            return format_html('<span style="color: #999;">— Nicht darstellbar —</span>')
     formatted_request.short_description = 'Request Body (formatiert)'
     
     def formatted_response(self, obj):
         """Pretty formatted response body"""
         if not obj or not obj.response_body:
-            return '-'
+            return format_html('<span style="color: #999;">— Keine Response Body —</span>')
         
         try:
             import json
             data = json.loads(obj.response_body)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
-        except:
+            if formatted and formatted.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 400px; overflow: auto;">{}</pre>', formatted)
+            return format_html('<span style="color: #999;">— Leere Response Body —</span>')
+        except Exception as e:
             body = obj.response_body[:1000] if obj.response_body else ''
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', body)
+            if body and body.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 400px; overflow: auto;">{}</pre>', body)
+            return format_html('<span style="color: #999;">— Nicht darstellbar —</span>')
     formatted_response.short_description = 'Response Body (formatiert)'
     
     def formatted_headers(self, obj):
-        """Pretty  or not objformatted headers"""
-        if not obj.headers:
-            return '-'
+        """Pretty formatted headers"""
+        if not obj or not obj.headers:
+            return format_html('<span style="color: #999;">— Keine Headers —</span>')
         
         try:
             import json
             data = json.loads(obj.headers)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
-        except:
-            return obj.headers
+            if formatted and formatted.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; max-height: 400px; overflow: auto;">{}</pre>', formatted)
+            return format_html('<span style="color: #999;">— Leere Headers —</span>')
+        except Exception as e:
+            if obj.headers and obj.headers.strip():
+                return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', obj.headers)
+            return format_html('<span style="color: #999;">— Nicht darstellbar —</span>')
     formatted_headers.short_description = 'Headers (formatiert)'
