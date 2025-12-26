@@ -73,7 +73,7 @@ Erstellt einen neuen Benutzer-Account. Passwort wird automatisch mit bcrypt geha
 | `email` | string | ✅ Ja | Body | E-Mail-Adresse (einzigartig) |
 | `username` | string | ✅ Ja | Body | Benutzername (einzigartig) |
 | `password` | string | ✅ Ja | Body | Min. 8 Zeichen, Sonderzeichen empfohlen |
-| `password_confirm` | string | ✅ Ja | Body | Muss mit `password` übereinstimmen |
+| `password2` oder `password_confirm` | string | ✅ Ja | Body | Muss mit `password` übereinstimmen (beide Namen werden akzeptiert) |
 | `first_name` | string | ⚠️ * | Body | Vorname |
 | `last_name` | string | ⚠️ * | Body | Nachname |
 | `website_id` | UUID | ✅ Ja | Body | ID der registrierenden Website |
@@ -122,7 +122,7 @@ Erstellt einen neuen Benutzer-Account. Passwort wird automatisch mit bcrypt geha
   "details": {
     "email": ["Benutzer mit dieser E-Mail existiert bereits."],
     "password": ["Passwort muss mindestens 8 Zeichen lang sein."],
-    "password_confirm": ["Passwörter stimmen nicht überein."],
+    "password2": ["Passwörter stimmen nicht überein."],
     "phone": ["Ungültiges Telefonnummern-Format."]
   }
 }
@@ -160,7 +160,7 @@ async function secureRegister(userData) {
         email: userData.email,
         username: userData.username,
         password: userData.password,  // Wird serverseitig gehasht
-        password_confirm: userData.passwordConfirm,
+        password2: userData.password,  // oder password_confirm - beide funktionieren
         first_name: userData.firstName,
         last_name: userData.lastName,
         website_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
@@ -732,7 +732,7 @@ Setzt ein neues Passwort mit einem gültigen Reset-Token.
 |------|-----|---------|--------------|--------------|
 | `token` | string | ✅ Ja | Body | Reset-Token aus E-Mail |
 | `password` | string | ✅ Ja | Body | Neues Passwort (min. 8 Zeichen) |
-| `password_confirm` | string | ✅ Ja | Body | Passwort-Bestätigung |
+| `password2` oder `password_confirm` | string | ✅ Ja | Body | Passwort-Bestätigung (beide Namen werden akzeptiert) |
 
 #### ✅ Erfolgreiche Response (200 OK):
 

@@ -267,7 +267,7 @@ Content-Type: application/json
 {
   "token": "reset_token_from_email",
   "new_password": "NewSecurePass123!",
-  "new_password2": "NewSecurePass123!"
+  "new_password2": "NewSecurePass123!"  // oder new_password_confirm
 }
 ```
 

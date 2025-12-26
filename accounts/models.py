@@ -125,16 +125,32 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.allowed_websites.filter(id=website.id).exists()
     
     def is_ready_for_lexware(self):
-        """Prüft ob Benutzerdaten vollständig genug für Lexware-Kontakt sind."""
+        """Prüft ob Benutzerdaten vollständig genug für Lexware-Kontakt sind.
+        
+        PFLICHTFELDER:
+        - E-Mail
+        - Vor- UND Nachname
+        - Vollständige Adresse (Straße, Stadt, PLZ)
+        """
         # E-Mail ist Pflicht
         if not self.email:
             return False
         
-        # Entweder Firma ODER Name muss vorhanden sein
-        if self.company:
-            return bool(self.company.strip())
-        else:
-            return bool(self.last_name or self.first_name)
+        # Vor- UND Nachname sind Pflicht
+        if not self.first_name or not self.first_name.strip():
+            return False
+        if not self.last_name or not self.last_name.strip():
+            return False
+        
+        # Vollständige Adresse ist Pflicht
+        if not self.street or not self.street.strip():
+            return False
+        if not self.city or not self.city.strip():
+            return False
+        if not self.postal_code or not self.postal_code.strip():
+            return False
+        
+        return True
     
     def get_lexware_missing_fields(self):
         """Gibt Liste der fehlenden Felder für Lexware-Kontakt zurück."""
@@ -143,12 +159,17 @@ class User(AbstractBaseUser, PermissionsMixin):
         if not self.email:
             missing.append('E-Mail')
         
-        if not self.company and not (self.last_name or self.first_name):
-            missing.append('Name oder Firma')
+        if not self.first_name or not self.first_name.strip():
+            missing.append('Vorname')
+        if not self.last_name or not self.last_name.strip():
+            missing.append('Nachname')
         
-        # Optional aber empfohlen
-        if not (self.city and self.postal_code):
-            missing.append('Adresse (Stadt/PLZ) [empfohlen]')
+        if not self.street or not self.street.strip():
+            missing.append('Straße')
+        if not self.city or not self.city.strip():
+            missing.append('Stadt')
+        if not self.postal_code or not self.postal_code.strip():
+            missing.append('PLZ')
         
         return missing
 

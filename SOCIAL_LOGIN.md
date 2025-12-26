@@ -97,53 +97,99 @@ POST /api/accounts/social-login/
   },
   "created": true,
   "profile_completed": false,
+  "lexware_ready": false,
+  "lexware_missing_fields": ["Straße", "Stadt", "PLZ"],
+  "lexware_info": "Profil unvollständig für Kundenkonto. Fehlende Felder: Straße, Stadt, PLZ",
   "message": "Erfolgreich mit Social Login angemeldet."
 }
 ```
 
-### 3. Profil-Vervollständigung
+### 3. Profil-Vervollständigung (inkl. Lexware-Kundenkonto)
 
-Wenn ein Benutzer sich über Social Login anmeldet, können bestimmte Felder fehlen, die von der Website gefordert werden.
+Wenn ein Benutzer sich über Social Login anmeldet, können bestimmte Felder fehlen, die von der Website gefordert werden **oder für ein Lexware-Kundenkonto benötigt werden**.
 
-#### Profil auf Vollständigkeit prüfen:
+#### Wichtig: Lexware-Kundenkonto Anforderungen
 
-```http
-POST /api/accounts/check-profile-completion/
-Authorization: Bearer {access_token}
-Content-Type: application/json
+Ein Lexware-Kundenkonto wird **nur** erstellt, wenn folgende Daten vorhanden sind:
+- ✅ E-Mail
+- ✅ Vorname **UND** Nachname
+- ✅ Vollständige Adresse (Straße, Stadt, PLZ)
 
+# Allgemeine Prüfung (ohne website_id) - prüft Lexware-Bereitschaft
+{}
+
+# ODER mit website_id für website-spezifische Prüfung
 {
   "website_id": "uuid"
 }
 ```
 
-**Response:**
+**Response (allgemein):**
 ```json
 {
   "profile_completed": false,
-  "missing_fields": [
-    "phone",
-    "street",
-    "city",
-    "postal_code"
-  ],
-  "required_fields": {
-    "require_first_name": true,
-    "require_last_name": true,
-    "require_phone": true,
-    "require_address": true,
-    "require_date_of_birth": false,
-    "require_company": false
-  },
+  "missing_fields": ["Straße", "Stadt", "PLZ"],
+  "has_lexware_contact": false,
+  "lexware_customer_number": null,
   "user": { ... }
 }
 ```
 
-#### Profil vervollständigen:
+**Response (mit website_id):**
+```json
+{
+  "profile_completed": false,
+  "missing_fields": ["Straße", "Stadt", "PLZ"],
+  "has_lexware_contact": false,
+  "lexware_customer_number": null,
+  "user": { ... },
+  "website_check": {
+    "website_id": "uuid",
+    "website_name": "Meine Website",
+    "profile_completed": false,
+    "missing_fields": [
+      "phone",
+      "street",
+      "city",
+      "postal_code" (erstellt automatisch Lexware-Kontakt):
 
 ```http
 POST /api/accounts/complete-profile/
 Authorization: Bearer {access_token}
+Content-Type: application/json
+
+{
+  "phone": "+49123456789",
+  "street": "Musterstraße",
+  "street_number": "123",
+  "city": "Berlin",
+  "postal_code": "10115",
+  "country": "Deutschland"
+}
+```
+
+**Response (mit automatischer Lexware-Kontakt-Erstellung):**
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "profile_completed": true,
+    "lexware_customer_number": 10020,
+    ...
+  },
+  "message": "Profil erfolgreich vervollständigt.",
+  "lexware_created": true,
+  "lexware_customer_number": 10020
+}
+```
+
+**Response (wenn Profil noch unvollständig):**
+```json
+{
+  "user": { ... },
+  "message": "Profil erfolgreich vervollständigt.",
+  "lexware_info": "Profil noch unvollständig für Lexware: Straße, Stadt
 Content-Type: application/json
 
 {
@@ -220,7 +266,7 @@ Authorization: Bearer {access_token}
 
 ## 📱 Integration Beispiele
 
-### JavaScript/React - Social Login mit Google
+### JavaScript/React - Social Login mit Google (inkl. Lexware)
 
 ```javascript
 import { authClient } from './auth-client';
@@ -240,25 +286,118 @@ async function loginWithGoogle() {
     avatar_url: googleUser.photoURL || ''
   });
   
+  console.log('Login Response:', response);
+  // {
+  //   user: { ... },
+  //   tokens: { ... },
+  //   lexware_ready: false,
+  //   lexware_missing_fields: ["Straße", "Stadt", "PLZ"],
+  //   lexware_info: "Profil unvollständig für Kundenkonto. Fehlende Felder: Straße, Stadt, PLZ"
+  // }
+  
   // 3. Prüfe ob Profil vollständig ist
-  if (!response.profile_completed) {
-    // Zeige Formular für fehlende Daten
-    const missing = await authClient.checkProfileCompletion(websiteId);
-    showCompleteProfileForm(missing.missing_fields);
+  if (!response.lexware_ready) {
+    // Zeige Hinweis: Profil vervollständigen für Kundenkonto
+    showCompleteProfileForm({
+      message: response.lexware_info,
+      missing_fields: response.lexware_missing_fields
+    });
   } else {
-    // Weiterleitung zur App
+    // Profil vollständig + Lexware-Kundenkonto vorhanden
+    console.log(`Lexware Kundennummer: ${response.lexware_customer_number}`);
     redirectToApp();
   }
 }
 
-// 4. Profil vervollständigen
+// 4. Profil vervollständigen (erstellt automatisch Lexware-Kontakt)
 async function completeProfile(data) {
-  await authClient.completeProfile({
-    website_id: websiteId,
-    ...data
-  });
+  const result = await authClient.completeProfile(data);
+  
+  if (result.lexware_created) {
+    console.log(`✅ Kundenkonto erstellt! Kundennummer: ${result.lexware_customer_number}`);
+    showSuccess('Profil vervollständigt & Kundenkonto erstellt!');
+  } else if (result.lexware_info) {
+    console.log(`⚠️ ${result.lexware_info}`);
+    showWarning(result.lexware_info);
+  }
   
   redirectToApp();
+}
+```
+
+### Vollständiger Flow: Google Login → Profil vervollständigen → Lexware
+
+```javascript
+// Beispiel: Vollständiger Social Login Flow mit Lexware-Integration
+
+async function handleGoogleLogin() {
+  try {
+    // Schritt 1: Google Login
+    const googleUser = await signInWithGoogle();
+    
+    // Schritt 2: An Auth Service senden
+    const authResponse = await fetch('http://localhost:8000/api/accounts/social-login/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: 'google',
+        provider_user_id: googleUser.uid,
+        email: googleUser.email,
+        first_name: googleUser.displayName?.split(' ')[0],
+        last_name: googleUser.displayName?.split(' ')[1]
+      })
+    });
+    
+    const data = await authResponse.json();
+    
+    // Tokens speichern
+    localStorage.setItem('access_token', data.tokens.access);
+    localStorage.setItem('refresh_token', data.tokens.refresh);
+    
+    // Schritt 3: Lexware-Bereitschaft prüfen
+    if (!data.lexware_ready) {
+      console.log('📝 Profil unvollständig:', data.lexware_missing_fields);
+      
+      // Zeige Formular
+      const formData = await showAddressForm({
+        title: 'Vervollständige dein Profil',
+        subtitle: 'Für dein Kundenkonto benötigen wir noch deine Adresse',
+        fields: data.lexware_missing_fields
+      });
+      
+      // Schritt 4: Profil vervollständigen
+      const completeResponse = await fetch('http://localhost:8000/api/accounts/complete-profile/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${data.tokens.access}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          street: formData.street,
+          street_number: formData.streetNumber,
+          city: formData.city,
+          postal_code: formData.postalCode,
+          country: formData.country || 'Deutschland'
+        })
+      });
+      
+      const completeData = await completeResponse.json();
+      
+      if (completeData.lexware_created) {
+        console.log(`✅ Kundenkonto erstellt! Kundennummer: ${completeData.lexware_customer_number}`);
+        showNotification('success', 'Profil vervollständigt & Kundenkonto erstellt!');
+      }
+    } else {
+      console.log(`✅ Bereits vollständiges Profil. Kundennummer: ${data.lexware_customer_number}`);
+    }
+    
+    // Schritt 5: Weiterleitung
+    window.location.href = '/dashboard';
+    
+  } catch (error) {
+    console.error('❌ Login fehlgeschlagen:', error);
+    showNotification('error', 'Login fehlgeschlagen. Bitte versuche es erneut.');
+  }
 }
 ```
 
@@ -275,10 +414,11 @@ class AuthServiceClient {
     });
   }
   
-  async checkProfileCompletion(websiteId) {
+  async checkProfileCompletion(websiteId = null) {
+    const body = websiteId ? { website_id: websiteId } : {};
     return this.request('/api/accounts/check-profile-completion/', {
-      method: 'POST',
-      body: JSON.stringify({ website_id: websiteId })
+      method: websiteId ? 'POST' : 'GET',
+      body: websiteId ? JSON.stringify(body) : undefined
     });
   }
   

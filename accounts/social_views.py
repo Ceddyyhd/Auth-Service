@@ -146,7 +146,7 @@ class SocialLoginView(APIView):
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
-        return Response({
+        response_data = {
             'user': UserSerializer(user).data,
             'social_account': SocialAccountSerializer(social_account).data,
             'tokens': {
@@ -156,7 +156,23 @@ class SocialLoginView(APIView):
             'created': created,
             'profile_completed': user.profile_completed,
             'message': 'Erfolgreich mit Social Login angemeldet.'
-        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        }
+        
+        # Prüfe Lexware-Bereitschaft und gebe Hinweise
+        if not user.is_ready_for_lexware():
+            missing = user.get_lexware_missing_fields()
+            response_data['lexware_ready'] = False
+            response_data['lexware_missing_fields'] = missing
+            response_data['lexware_info'] = (
+                f"Profil unvollständig für Kundenkonto. "
+                f"Fehlende Felder: {', '.join(missing)}"
+            )
+        else:
+            response_data['lexware_ready'] = True
+            if user.lexware_customer_number:
+                response_data['lexware_customer_number'] = user.lexware_customer_number
+        
+        return Response(response_data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
     
     def _generate_unique_username(self, email):
         """Generate unique username from email."""

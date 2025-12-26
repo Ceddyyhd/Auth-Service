@@ -196,6 +196,11 @@ class LexwareIntegration:
         """
         Prüft ob Benutzerdaten vollständig genug für Lexware-Kontakt sind.
         
+        PFLICHTFELDER für Lexware-Kundenkonto:
+        - E-Mail
+        - Vor- UND Nachname (für Privatkunden)
+        - Vollständige Adresse (Straße, Stadt, PLZ)
+        
         Args:
             user: User-Objekt aus Django
             
@@ -204,31 +209,27 @@ class LexwareIntegration:
         """
         missing_fields = []
         
-        # Mindestanforderungen für Lexware-Kontakt
+        # E-Mail ist immer Pflicht
         if not user.email:
             missing_fields.append("E-Mail")
         
-        # Entweder Vorname+Nachname ODER Firma muss vorhanden sein
-        if user.company:
-            # Firmenkunde - Firma ist Pflicht
-            if not user.company.strip():
-                missing_fields.append("Firmenname")
-        else:
-            # Privatkunde - Nachname ist Pflicht (Vorname optional)
-            if not user.last_name and not user.first_name:
-                missing_fields.append("Vor- oder Nachname")
+        # Vor- UND Nachname sind Pflicht für Kundenkonto
+        if not user.first_name or not user.first_name.strip():
+            missing_fields.append("Vorname")
+        if not user.last_name or not user.last_name.strip():
+            missing_fields.append("Nachname")
         
-        # Adresse für ordentliche Rechnung (empfohlen, aber nicht zwingend)
-        address_incomplete = not (user.city and user.postal_code)
+        # Vollständige Adresse ist Pflicht
+        if not user.street or not user.street.strip():
+            missing_fields.append("Straße")
+        if not user.city or not user.city.strip():
+            missing_fields.append("Stadt")
+        if not user.postal_code or not user.postal_code.strip():
+            missing_fields.append("PLZ")
         
         if missing_fields:
             error_msg = f"Fehlende Pflichtfelder: {', '.join(missing_fields)}"
             return False, error_msg
-        
-        if address_incomplete:
-            warning_msg = "Hinweis: Adresse unvollständig (Stadt/PLZ fehlen)"
-            logger.warning(f"Benutzer {user.email}: {warning_msg}")
-            # Trotzdem erlauben, aber warnen
         
         return True, ""
     

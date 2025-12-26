@@ -17,15 +17,22 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     )
     password2 = serializers.CharField(
         write_only=True,
-        required=True,
+        required=False,
         style={'input_type': 'password'},
         label='Passwort bestätigen'
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=False,
+        style={'input_type': 'password'},
+        label='Passwort bestätigen',
+        help_text='Alias für password2'
     )
     website_id = serializers.UUIDField(write_only=True, required=False)
     
     class Meta:
         model = User
-        fields = ('email', 'username', 'password', 'password2', 
+        fields = ('email', 'username', 'password', 'password2', 'password_confirm',
                   'first_name', 'last_name', 'phone',
                   'street', 'street_number', 'city', 'postal_code', 'country',
                   'date_of_birth', 'company', 'website_id')
@@ -44,6 +51,16 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
     def validate(self, attrs):
         """Validate that passwords match and check required fields for website."""
+        # Support both password2 and password_confirm
+        password_confirm = attrs.pop('password_confirm', None)
+        if password_confirm:
+            attrs['password2'] = password_confirm
+        
+        if not attrs.get('password2'):
+            raise serializers.ValidationError({
+                "password2": "Passwort-Bestätigung ist erforderlich."
+            })
+        
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError({
                 "password": "Passwörter stimmen nicht überein."
@@ -156,14 +173,30 @@ class ChangePasswordSerializer(serializers.Serializer):
         label='Neues Passwort'
     )
     new_password2 = serializers.CharField(
-        required=True,
+        required=False,
         style={'input_type': 'password'},
         help_text='Neues Passwort (Bestätigung)',
         label='Neues Passwort (Wiederholung)'
     )
+    new_password_confirm = serializers.CharField(
+        required=False,
+        style={'input_type': 'password'},
+        help_text='Neues Passwort (Bestätigung) - Alias für new_password2',
+        label='Neues Passwort bestätigen'
+    )
     
     def validate(self, attrs):
         """Validate that new passwords match."""
+        # Support both new_password2 and new_password_confirm
+        new_password_confirm = attrs.pop('new_password_confirm', None)
+        if new_password_confirm:
+            attrs['new_password2'] = new_password_confirm
+        
+        if not attrs.get('new_password2'):
+            raise serializers.ValidationError({
+                "new_password2": "Passwort-Bestätigung ist erforderlich."
+            })
+        
         if attrs['new_password'] != attrs['new_password2']:
             raise serializers.ValidationError({
                 "new_password": "Neue Passwörter stimmen nicht überein."
