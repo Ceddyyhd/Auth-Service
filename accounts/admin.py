@@ -490,7 +490,7 @@ class PasswordResetTokenAdmin(admin.ModelAdmin):
 class APIRequestLogAdmin(admin.ModelAdmin):
     """Admin interface for API Request Logs"""
     list_display = (
-        'timestamp',
+        'timestamp_display',
         'method',
         'path_short',
         'status_code',
@@ -502,7 +502,6 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     list_filter = (
         'method',
         'status_code',
-        ('timestamp', admin.DateFieldListFilter),
         'user',
     )
     search_fields = (
@@ -533,7 +532,7 @@ class APIRequestLogAdmin(admin.ModelAdmin):
         'formatted_headers',
         'get_duration_ms_display',
     )
-    date_hierarchy = 'timestamp'
+    date_hierarchy = None
     ordering = ('-timestamp',)
     list_per_page = 50
     
@@ -568,10 +567,22 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     def path_short(self, obj):
         """Shortened path for list view"""
+        if not obj or not obj.path:
+            return '-'
         if len(obj.path) > 50:
             return f"{obj.path[:47]}..."
         return obj.path
     path_short.short_description = 'Pfad'
+    
+    def timestamp_display(self, obj):
+        """Format timestamp for display"""
+        if not obj or not obj.timestamp:
+            return '-'
+        from django.utils import timezone
+        local_time = timezone.localtime(obj.timestamp)
+        return local_time.strftime('%Y-%m-%d %H:%M:%S')
+    timestamp_display.short_description = 'Zeit'
+    timestamp_display.admin_order_field = 'timestamp'
     
     def user_email(self, obj):
         """User email or Anonymous"""

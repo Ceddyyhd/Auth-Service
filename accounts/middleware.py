@@ -28,7 +28,12 @@ class APIRequestLoggingMiddleware(MiddlewareMixin):
         Nach dem Response: Log erstellen
         """
         # Nur API-Requests loggen (URLs die mit /api/ beginnen)
+        # ABER NICHT Admin-Seiten oder statische Dateien
         if not request.path.startswith('/api/'):
+            return response
+        
+        # Admin-Seiten NICHT loggen (verhindert rekursive Logs)
+        if request.path.startswith('/admin/'):
             return response
         
         # Request-Dauer berechnen
@@ -77,6 +82,12 @@ class APIRequestLoggingMiddleware(MiddlewareMixin):
         
         # Log in Datenbank speichern
         try:
+            # Prüfe ob wir bereits im Logging sind (verhindert rekursive Aufrufe)
+            if hasattr(request, '_logging_in_progress'):
+                return response
+            
+            request._logging_in_progress = True
+            
             APIRequestLog.objects.create(
                 user=user,
                 method=request.method,
@@ -93,6 +104,7 @@ class APIRequestLoggingMiddleware(MiddlewareMixin):
             )
         except Exception as e:
             # Fehler beim Logging nicht durchreichen
+            pass
             print(f"Error logging API request: {e}")
         
         return response
