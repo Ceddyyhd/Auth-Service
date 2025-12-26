@@ -484,3 +484,164 @@ class PasswordResetTokenAdmin(admin.ModelAdmin):
     is_token_valid.boolean = True
     is_token_valid.short_description = 'Gültig'
 
+
+@admin.register(APIRequestLog)
+class APIRequestLogAdmin(admin.ModelAdmin):
+    """Admin interface for API Request Logs"""
+    list_display = (
+        'timestamp',
+        'method',
+        'path_short',
+        'status_code',
+        'user_email',
+        'ip_address',
+        'duration_ms',
+        'is_error_display'
+    )
+    list_filter = (
+        'method',
+        'status_code',
+        ('timestamp', admin.DateFieldListFilter),
+        'user',
+    )
+    search_fields = (
+        'path',
+        'ip_address',
+        'user__email',
+        'user__username',
+        'request_body',
+        'response_body'
+    )
+    readonly_fields = (
+        'id',
+        'user',
+        'method',
+        'path',
+        'query_params',
+        'request_body',
+        'response_body',
+        'status_code',
+        'ip_address',
+        'user_agent',
+        'headers',
+        'referer',
+        'duration',
+        'timestamp',
+        'duration_ms',
+        'formatted_request',
+        'formatted_response',
+        'formatted_headers'
+    )
+    date_hierarchy = 'timestamp'
+    ordering = ('-timestamp',)
+    list_per_page = 50
+    
+    fieldsets = (
+        ('📊 Übersicht', {
+            'fields': ('id', 'timestamp', 'duration', 'duration_ms', 'status_code')
+        }),
+        ('🔗 Request', {
+            'fields': ('method', 'path', 'query_params', 'user', 'ip_address', 'user_agent', 'referer')
+        }),
+        ('📝 Request Details', {
+            'fields': ('formatted_request', 'request_body'),
+            'classes': ('collapse',)
+        }),
+        ('📤 Response Details', {
+            'fields': ('formatted_response', 'response_body'),
+            'classes': ('collapse',)
+        }),
+        ('🔧 Headers', {
+            'fields': ('formatted_headers', 'headers'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def has_add_permission(self, request):
+        """Logs cannot be manually added"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Logs cannot be edited"""
+        return False
+    
+    def path_short(self, obj):
+        """Shortened path for list view"""
+        if len(obj.path) > 50:
+            return f"{obj.path[:47]}..."
+        return obj.path
+    path_short.short_description = 'Pfad'
+    
+    def user_email(self, obj):
+        """User email or Anonymous"""
+        return obj.user.email if obj.user else 'Anonymous'
+    user_email.short_description = 'Benutzer'
+    
+    def duration_ms(self, obj):
+        """Duration in milliseconds"""
+        ms = obj.get_duration_ms()
+        if ms:
+            if ms < 100:
+                color = 'green'
+            elif ms < 500:
+                color = 'orange'
+            else:
+                color = 'red'
+            return f'<span style="color: {color};">{ms} ms</span>'
+        return '-'
+    duration_ms.short_description = 'Dauer'
+    duration_ms.allow_tags = True
+    
+    def is_error_display(self, obj):
+        """Visual indicator for errors"""
+        if obj.is_error():
+            return '❌'
+        elif obj.is_success():
+            return '✅'
+        return '⚠️'
+    is_error_display.short_description = 'Status'
+    
+    def formatted_request(self, obj):
+        """Pretty formatted request body"""
+        if not obj.request_body:
+            return '-'
+        
+        try:
+            import json
+            data = json.loads(obj.request_body)
+            formatted = json.dumps(data, indent=2, ensure_ascii=False)
+            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+        except:
+            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{obj.request_body}</pre>'
+    formatted_request.short_description = 'Request Body (formatiert)'
+    formatted_request.allow_tags = True
+    
+    def formatted_response(self, obj):
+        """Pretty formatted response body"""
+        if not obj.response_body:
+            return '-'
+        
+        try:
+            import json
+            data = json.loads(obj.response_body)
+            formatted = json.dumps(data, indent=2, ensure_ascii=False)
+            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+        except:
+            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{obj.response_body[:1000]}</pre>'
+    formatted_response.short_description = 'Response Body (formatiert)'
+    formatted_response.allow_tags = True
+    
+    def formatted_headers(self, obj):
+        """Pretty formatted headers"""
+        if not obj.headers:
+            return '-'
+        
+        try:
+            import json
+            data = json.loads(obj.headers)
+            formatted = json.dumps(data, indent=2, ensure_ascii=False)
+            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+        except:
+            return obj.headers
+    formatted_headers.short_description = 'Headers (formatiert)'
+    formatted_headers.allow_tags = True
