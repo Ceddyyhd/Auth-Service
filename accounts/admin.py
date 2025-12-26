@@ -528,10 +528,10 @@ class APIRequestLogAdmin(admin.ModelAdmin):
         'referer',
         'duration',
         'timestamp',
-        'duration_ms',
         'formatted_request',
         'formatted_response',
-        'formatted_headers'
+        'formatted_headers',
+        'get_duration_ms_display',
     )
     date_hierarchy = 'timestamp'
     ordering = ('-timestamp',)
@@ -539,7 +539,7 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('📊 Übersicht', {
-            'fields': ('id', 'timestamp', 'duration', 'duration_ms', 'status_code')
+            'fields': ('id', 'timestamp', 'duration', 'get_duration_ms_display', 'status_code')
         }),
         ('🔗 Request', {
             'fields': ('method', 'path', 'query_params', 'user', 'ip_address', 'user_agent', 'referer')
@@ -575,11 +575,22 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     def user_email(self, obj):
         """User email or Anonymous"""
-        return obj.user.email if obj.user else 'Anonymous'
+        if obj and obj.user:
+            return obj.user.email
+        return 'Anonymous'
     user_email.short_description = 'Benutzer'
+    
+    def get_duration_ms_display(self, obj):
+        """Duration in milliseconds for detail view"""
+        if obj and obj.duration:
+            return f"{round(obj.duration * 1000, 2)} ms"
+        return '-'
+    get_duration_ms_display.short_description = 'Dauer (ms)'
     
     def duration_ms(self, obj):
         """Duration in milliseconds"""
+        if not obj:
+            return '-'
         ms = obj.get_duration_ms()
         if ms:
             if ms < 100:
@@ -594,6 +605,8 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     def is_error_display(self, obj):
         """Visual indicator for errors"""
+        if not obj:
+            return '⚠️'
         if obj.is_error():
             return '❌'
         elif obj.is_success():
@@ -603,7 +616,7 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     def formatted_request(self, obj):
         """Pretty formatted request body"""
-        if not obj.request_body:
+        if not obj or not obj.request_body:
             return '-'
         
         try:
@@ -617,7 +630,7 @@ class APIRequestLogAdmin(admin.ModelAdmin):
     
     def formatted_response(self, obj):
         """Pretty formatted response body"""
-        if not obj.response_body:
+        if not obj or not obj.response_body:
             return '-'
         
         try:
@@ -626,11 +639,12 @@ class APIRequestLogAdmin(admin.ModelAdmin):
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
             return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
         except:
-            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', obj.response_body[:1000])
+            body = obj.response_body[:1000] if obj.response_body else ''
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', body)
     formatted_response.short_description = 'Response Body (formatiert)'
     
     def formatted_headers(self, obj):
-        """Pretty formatted headers"""
+        """Pretty  or not objformatted headers"""
         if not obj.headers:
             return '-'
         
