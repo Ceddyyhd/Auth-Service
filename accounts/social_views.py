@@ -14,8 +14,12 @@ from accounts.serializers import (
     CompleteProfileSerializer,
     WebsiteRequiredFieldsSerializer
 )
+from accounts.lexware_integration import get_lexware_client
 import secrets
 import hashlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -170,10 +174,10 @@ class SocialLoginView(APIView):
 class CompleteProfileView(APIView):
     """
     Complete user profile with missing required fields.
+    Automatically creates Lexware contact if profile becomes complete.
     
     POST /api/accounts/complete-profile/
     Body: {
-        "website_id": "uuid",
         "first_name": "Max",
         "last_name": "Mustermann",
         "phone": "+49123456789",
@@ -189,82 +193,144 @@ class CompleteProfileView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
     
     def post(self, request):
+        user = request.user
+        had_lexware_contact = bool(user.lexware_contact_id)
+        
         serializer = CompleteProfileSerializer(
-            request.user,
+            user,
             data=request.data,
             partial=True
         )
         
         if serializer.is_valid():
             user = serializer.save()
-            return Response({
+            
+            response_data = {
                 'user': UserSerializer(user).data,
                 'message': 'Profil erfolgreich vervollständigt.'
-            }, status=status.HTTP_200_OK)
+            }
+            
+            # Versuche Lexware-Kontakt zu erstellen, falls noch nicht vorhanden
+            if not had_lexware_contact and user.is_ready_for_lexware():
+                try:
+                    lexware = get_lexware_client()
+                    if lexware:
+                        contact = lexware.create_customer_contact(user)
+                        if contact:
+                            response_data['lexware_created'] = True
+                            response_data['lexware_customer_number'] = user.lexware_customer_number
+                            logger.info(
+                                f"Lexware-Kontakt erstellt nach Profil-Vervollständigung: "
+                                f"{user.email} (Kundennummer: {user.lexware_customer_number})"
+                            )
+                        else:
+                            response_data['lexware_created'] = False
+                            response_data['lexware_info'] = 'Lexware-Kontakt konnte nicht erstellt werden.'
+                    else:
+                        response_data['lexware_created'] = False
+                        response_data['lexware_info'] = 'Lexware-Integration nicht konfiguriert.'
+                except Exception as e:
+                    logger.error(f"Fehler bei Lexware-Kontakt-Erstellung nach complete-profile: {str(e)}")
+                    response_data['lexware_created'] = False
+                    response_data['lexware_info'] = 'Fehler bei Lexware-Kontakt-Erstellung.'
+            elif had_lexware_contact:
+                # Aktualisiere existierenden Kontakt
+                try:
+                    lexware = get_lexware_client()
+                    if lexware:
+                        lexware.update_customer_contact(user)
+                        response_data['lexware_updated'] = True
+                        logger.info(f"Lexware-Kontakt aktualisiert: {user.email}")
+                except Exception as e:
+                    logger.error(f"Fehler bei Lexware-Kontakt-Aktualisierung: {str(e)}")
+                    response_data['lexware_updated'] = False
+            elif not user.is_ready_for_lexware():
+                missing = user.get_lexware_missing_fields()
+                response_data['lexware_info'] = f"Profil noch unvollständig für Lexware: {', '.join(missing)}"
+            
+            return Response(response_data, status=status.HTTP_200_OK)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CheckProfileCompletionView(APIView):
     """
-    Check if user profile is complete for a specific website.
+    Check if user profile is complete.
     
-    POST /api/accounts/check-profile-completion/
-    Body: {
-        "website_id": "uuid"
+    General profile completion check (Lexware-ready).
+    Optionally check website-specific requirements if website_id provided.
+    
+    GET or POST /api/accounts/check-profile-completion/
+    Body (optional): {
+        "website_id": "uuid"  // Optional: für website-spezifische Prüfung
     }
     """
     permission_classes = (permissions.IsAuthenticated,)
     
+    def get(self, request):
+        """GET endpoint für allgemeine Profil-Prüfung."""
+        return self._check_profile(request)
+    
     def post(self, request):
-        website_id = request.data.get('website_id')
-        
-        if not website_id:
-            return Response({
-                'error': 'website_id ist erforderlich.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            website = Website.objects.get(id=website_id)
-        except Website.DoesNotExist:
-            return Response({
-                'error': 'Website nicht gefunden.'
-            }, status=status.HTTP_404_NOT_FOUND)
-        
+        """POST endpoint für optionale website-spezifische Prüfung."""
+        return self._check_profile(request)
+    
+    def _check_profile(self, request):
         user = request.user
-        missing_fields = []
+        website_id = request.data.get('website_id') if request.method == 'POST' else None
         
-        # Check required fields
-        if website.require_first_name and not user.first_name:
-            missing_fields.append('first_name')
-        if website.require_last_name and not user.last_name:
-            missing_fields.append('last_name')
-        if website.require_phone and not user.phone:
-            missing_fields.append('phone')
-        if website.require_address:
-            if not user.street:
-                missing_fields.append('street')
-            if not user.street_number:
-                missing_fields.append('street_number')
-            if not user.city:
-                missing_fields.append('city')
-            if not user.postal_code:
-                missing_fields.append('postal_code')
-            if not user.country:
-                missing_fields.append('country')
-        if website.require_date_of_birth and not user.date_of_birth:
-            missing_fields.append('date_of_birth')
-        if website.require_company and not user.company:
-            missing_fields.append('company')
+        # Allgemeine Profil-Prüfung (Lexware-Bereitschaft)
+        is_lexware_ready = user.is_ready_for_lexware()
+        lexware_missing = user.get_lexware_missing_fields()
         
-        is_complete = len(missing_fields) == 0
-        
-        return Response({
-            'profile_completed': is_complete,
-            'missing_fields': missing_fields,
-            'required_fields': WebsiteRequiredFieldsSerializer(website).data,
+        response_data = {
+            'profile_completed': is_lexware_ready,
+            'missing_fields': lexware_missing,
+            'has_lexware_contact': bool(user.lexware_contact_id),
+            'lexware_customer_number': user.lexware_customer_number,
             'user': UserSerializer(user).data
-        }, status=status.HTTP_200_OK)
+        }
+        
+        # Optional: Website-spezifische Prüfung
+        if website_id:
+            try:
+                website = Website.objects.get(id=website_id)
+                website_missing = []
+                
+                # Check required fields
+                if website.require_first_name and not user.first_name:
+                    website_missing.append('first_name')
+                if website.require_last_name and not user.last_name:
+                    website_missing.append('last_name')
+                if website.require_phone and not user.phone:
+                    website_missing.append('phone')
+                if website.require_address:
+                    if not user.street:
+                        website_missing.append('street')
+                    if not user.street_number:
+                        website_missing.append('street_number')
+                    if not user.city:
+                        website_missing.append('city')
+                    if not user.postal_code:
+                        website_missing.append('postal_code')
+                    if not user.country:
+                        website_missing.append('country')
+                if website.require_date_of_birth and not user.date_of_birth:
+                    website_missing.append('date_of_birth')
+                if website.require_company and not user.company:
+                    website_missing.append('company')
+                
+                response_data['website_check'] = {
+                    'website_id': str(website.id),
+                    'website_name': website.name,
+                    'profile_completed': len(website_missing) == 0,
+                    'missing_fields': website_missing,
+                    'required_fields': WebsiteRequiredFieldsSerializer(website).data
+                }
+            except Website.DoesNotExist:
+                response_data['website_check_error'] = 'Website nicht gefunden.'
+        
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])

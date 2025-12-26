@@ -233,7 +233,7 @@ class LexwareIntegration:
                         "street": f"{user.street} {user.street_number}".strip() or "",
                         "city": user.city or "",
                         "zip": user.postal_code or "",
-                        "countryCode": user.country or "DE"  # Standard Deutschland
+                        "countryCode": normalize_country_code(user.country)
                     }
                 ]
             }
