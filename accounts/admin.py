@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.admin import AdminSite
+from django.utils.html import format_html
 from .models import User, Website, UserSession, SocialAccount, EmailVerificationToken, PasswordResetToken, MFADevice, SSOToken, APIRequestLog
 from .admin_mfa import AdminMFAAuthenticationForm
 
@@ -587,10 +588,9 @@ class APIRequestLogAdmin(admin.ModelAdmin):
                 color = 'orange'
             else:
                 color = 'red'
-            return f'<span style="color: {color};">{ms} ms</span>'
+            return format_html('<span style="color: {};">{} ms</span>', color, ms)
         return '-'
     duration_ms.short_description = 'Dauer'
-    duration_ms.allow_tags = True
     
     def is_error_display(self, obj):
         """Visual indicator for errors"""
@@ -610,11 +610,10 @@ class APIRequestLogAdmin(admin.ModelAdmin):
             import json
             data = json.loads(obj.request_body)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
         except:
-            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{obj.request_body}</pre>'
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', obj.request_body)
     formatted_request.short_description = 'Request Body (formatiert)'
-    formatted_request.allow_tags = True
     
     def formatted_response(self, obj):
         """Pretty formatted response body"""
@@ -625,11 +624,10 @@ class APIRequestLogAdmin(admin.ModelAdmin):
             import json
             data = json.loads(obj.response_body)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
         except:
-            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{obj.response_body[:1000]}</pre>'
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', obj.response_body[:1000])
     formatted_response.short_description = 'Response Body (formatiert)'
-    formatted_response.allow_tags = True
     
     def formatted_headers(self, obj):
         """Pretty formatted headers"""
@@ -640,8 +638,7 @@ class APIRequestLogAdmin(admin.ModelAdmin):
             import json
             data = json.loads(obj.headers)
             formatted = json.dumps(data, indent=2, ensure_ascii=False)
-            return f'<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{formatted}</pre>'
+            return format_html('<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px;">{}</pre>', formatted)
         except:
             return obj.headers
     formatted_headers.short_description = 'Headers (formatiert)'
-    formatted_headers.allow_tags = True
