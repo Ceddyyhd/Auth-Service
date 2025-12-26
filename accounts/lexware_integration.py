@@ -11,6 +11,74 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# Gültige ISO-3166-1 Alpha-2 Country Codes für Lexware
+VALID_COUNTRY_CODES = {
+    'DE', 'AT', 'CH', 'FR', 'IT', 'ES', 'GB', 'NL', 'BE', 'LU',
+    'DK', 'SE', 'NO', 'FI', 'PL', 'CZ', 'SK', 'HU', 'RO', 'BG',
+    'GR', 'PT', 'IE', 'HR', 'SI', 'EE', 'LV', 'LT', 'CY', 'MT',
+    'US', 'CA', 'AU', 'NZ', 'JP', 'CN', 'IN', 'BR', 'MX', 'AR'
+}
+
+def normalize_country_code(country_value):
+    """
+    Normalisiert Länderwert zu ISO-3166-1 Alpha-2 Code.
+    
+    Akzeptiert:
+    - ISO-Codes: "DE", "AT", "CH"
+    - Ländernamen: "Deutschland", "Österreich", "Schweiz"
+    - Leere Werte: None, ""
+    
+    Returns:
+    - Gültigen ISO-Code (z.B. "DE") oder "DE" als Fallback
+    """
+    if not country_value:
+        return "DE"  # Deutschland als Standard
+    
+    country_str = str(country_value).strip().upper()
+    
+    # Bereits ein gültiger ISO-Code?
+    if country_str in VALID_COUNTRY_CODES:
+        return country_str
+    
+    # Mapping von deutschen Ländernamen zu ISO-Codes
+    country_mapping = {
+        'DEUTSCHLAND': 'DE',
+        'GERMANY': 'DE',
+        'ÖSTERREICH': 'AT',
+        'OESTERREICH': 'AT',
+        'AUSTRIA': 'AT',
+        'SCHWEIZ': 'CH',
+        'SWITZERLAND': 'CH',
+        'FRANKREICH': 'FR',
+        'FRANCE': 'FR',
+        'ITALIEN': 'IT',
+        'ITALY': 'IT',
+        'SPANIEN': 'ES',
+        'SPAIN': 'ES',
+        'NIEDERLANDE': 'NL',
+        'NETHERLANDS': 'NL',
+        'BELGIEN': 'BE',
+        'BELGIUM': 'BE',
+        'LUXEMBURG': 'LU',
+        'LUXEMBOURG': 'LU',
+        'POLEN': 'PL',
+        'POLAND': 'PL',
+        'TSCHECHIEN': 'CZ',
+        'CZECH REPUBLIC': 'CZ',
+        'VEREINIGTES KÖNIGREICH': 'GB',
+        'UNITED KINGDOM': 'GB',
+        'GROSSBRITANNIEN': 'GB',
+        'UK': 'GB',
+    }
+    
+    # Versuche Mapping zu finden
+    if country_str in country_mapping:
+        return country_mapping[country_str]
+    
+    # Fallback: Deutschland
+    logger.warning(f"Unbekannter Länderwert '{country_value}' - verwende 'DE' als Fallback")
+    return "DE"
+
 
 class LexwareAPIError(Exception):
     """Custom exception for Lexware API errors"""
