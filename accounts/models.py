@@ -189,32 +189,32 @@ class Website(models.Model):
         help_text='Liste von erlaubten Origins für CORS (z.B. ["https://example.com"])'
     )
     
-    # API Credentials
+    # API Credentials (werden automatisch generiert)
     api_key = models.CharField(
         max_length=64, 
         unique=True, 
         blank=True,
         verbose_name='API Key',
-        help_text='Öffentlicher API Key für Client-seitige Anfragen'
+        help_text='Wird automatisch generiert - für Server-zu-Server API-Calls'
     )
     api_secret = models.CharField(
         max_length=64, 
         blank=True,
         verbose_name='API Secret',
-        help_text='Geheimer API Key - NUR für Server-seitige Anfragen!'
+        help_text='Wird automatisch generiert - geheimer Key für Server-Anfragen'
     )
     client_id = models.CharField(
         max_length=255, 
         unique=True, 
         blank=True,
         verbose_name='Client ID',
-        help_text='OAuth2 Client ID für SSO'
+        help_text='Wird automatisch generiert - für OAuth2/SSO'
     )
     client_secret = models.CharField(
         max_length=255, 
         blank=True,
         verbose_name='Client Secret',
-        help_text='OAuth2 Client Secret für SSO'
+        help_text='Wird automatisch generiert - für OAuth2/SSO'
     )
     
     # Settings
@@ -247,7 +247,7 @@ class Website(models.Model):
         return f"{self.name} ({self.domain})"
     
     def save(self, *args, **kwargs):
-        """Generate API keys and client credentials if not set."""
+        """Generiere alle Credentials automatisch beim Erstellen."""
         if not self.api_key:
             self.api_key = f"pk_{secrets.token_urlsafe(32)}"
         if not self.api_secret:
@@ -258,14 +258,13 @@ class Website(models.Model):
             self.client_secret = secrets.token_urlsafe(48)
         super().save(*args, **kwargs)
     
-    def regenerate_api_keys(self):
-        """Regenerate API credentials (use with caution!)."""
+    def regenerate_credentials(self):
+        """Regeneriere alle Credentials (Vorsicht!)"""
         self.api_key = f"pk_{secrets.token_urlsafe(32)}"
         self.api_secret = f"sk_{secrets.token_urlsafe(32)}"
         self.client_id = f"client_{secrets.token_urlsafe(32)}"
         self.client_secret = secrets.token_urlsafe(48)
         self.save()
-        return f"{self.name} ({self.domain})"
 
 
 class UserSession(models.Model):
@@ -551,3 +550,66 @@ class PasswordResetToken(models.Model):
         """Generate a secure random token."""
         return secrets.token_urlsafe(32)
 
+
+class APIRequestLog(models.Model):
+    """
+    Logs all API requests with detailed information
+    """
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='api_requests',
+        verbose_name='Benutzer'
+    )
+    
+    # Request Information
+    method = models.CharField(max_length=10, verbose_name='HTTP Methode')
+    path = models.CharField(max_length=500, verbose_name='Pfad', db_index=True)
+    query_params = models.TextField(blank=True, null=True, verbose_name='Query Parameter')
+    request_body = models.TextField(blank=True, null=True, verbose_name='Request Body')
+    
+    # Response Information
+    response_body = models.TextField(blank=True, null=True, verbose_name='Response Body')
+    status_code = models.IntegerField(verbose_name='Status Code', db_index=True)
+    
+    # Client Information
+    ip_address = models.CharField(max_length=45, verbose_name='IP-Adresse', db_index=True)
+    user_agent = models.CharField(max_length=500, blank=True, verbose_name='User Agent')
+    headers = models.TextField(blank=True, null=True, verbose_name='Headers')
+    referer = models.CharField(max_length=500, blank=True, verbose_name='Referer')
+    
+    # Metadata
+    duration = models.FloatField(null=True, blank=True, verbose_name='Dauer (Sekunden)')
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name='Zeitstempel', db_index=True)
+    
+    class Meta:
+        verbose_name = 'API Request Log'
+        verbose_name_plural = 'API Request Logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp', 'status_code']),
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['ip_address', '-timestamp']),
+        ]
+    
+    def __str__(self):
+        user_info = f"{self.user.email}" if self.user else "Anonymous"
+        return f"{self.method} {self.path} - {self.status_code} ({user_info})"
+    
+    def get_duration_ms(self):
+        """Return duration in milliseconds."""
+        if self.duration:
+            return round(self.duration * 1000, 2)
+        return None
+    
+    def is_error(self):
+        """Check if request resulted in error."""
+        return self.status_code >= 400
+    
+    def is_success(self):
+        """Check if request was successful."""
+        return 200 <= self.status_code < 300

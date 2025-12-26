@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'accounts.middleware.APIRequestLoggingMiddleware',  # API Request Logging
 ]
 
 ROOT_URLCONF = 'auth_service.urls'

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.admin import AdminSite
-from .models import User, Website, UserSession, SocialAccount, EmailVerificationToken, PasswordResetToken, MFADevice, SSOToken
+from .models import User, Website, UserSession, SocialAccount, EmailVerificationToken, PasswordResetToken, MFADevice, SSOToken, APIRequestLog
 from .admin_mfa import AdminMFAAuthenticationForm
 
 
