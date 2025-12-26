@@ -284,11 +284,12 @@ class WebsiteAdmin(admin.ModelAdmin):
     
     def get_roles_count(self, obj):
         """Anzahl lokaler Rollen für diese Website"""
-        count = obj.roles.count()
+        # UserRole hat related_name='user_role_assignments', nicht 'roles'
+        count = obj.user_role_assignments.count()
         if count > 0:
             return f"🎭 {count}"
         return "—"
-    get_roles_count.short_description = 'Rollen'
+    get_roles_count.short_description = 'Rollenzuweisungen'
     
     def get_permissions_count(self, obj):
         """Anzahl lokaler Berechtigungen für diese Website"""
