@@ -70,10 +70,12 @@ class SocialAccountInline(admin.TabularInline):
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ('email', 'username', 'first_name', 'last_name', 'profile_completed', 
-                    'is_active', 'is_staff', 'is_verified', 'get_roles_count', 'date_joined')
+                    'is_active', 'is_staff', 'is_verified', 'get_roles_count', 
+                    'lexware_customer_number', 'date_joined')
     list_filter = ('is_active', 'is_staff', 'is_verified', 'profile_completed', 
                    'allowed_websites', 'date_joined')
-    search_fields = ('email', 'username', 'first_name', 'last_name', 'phone', 'company')
+    search_fields = ('email', 'username', 'first_name', 'last_name', 'phone', 'company',
+                    'lexware_customer_number')
     ordering = ('-date_joined',)
     
     inlines = [UserRoleInline, UserPermissionInline, SocialAccountInline]
@@ -88,6 +90,11 @@ class UserAdmin(BaseUserAdmin):
         ('📍 Adresse', {
             'fields': ('street', 'street_number', 'city', 'postal_code', 'country'),
             'classes': ('collapse',)
+        }),
+        ('💼 Lexware Integration', {
+            'fields': ('lexware_contact_id', 'lexware_customer_number'),
+            'classes': ('collapse',),
+            'description': '🔗 Automatisch synchronisiert mit Lexware bei Registrierung'
         }),
         ('⚙️ System-Berechtigungen', {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'is_verified'),
@@ -115,6 +122,8 @@ class UserAdmin(BaseUserAdmin):
     
     filter_horizontal = ('allowed_websites',)
     
+    readonly_fields = ('lexware_contact_id', 'lexware_customer_number')
+    
     def get_roles_count(self, obj):
         """Zeigt Anzahl der zugewiesenen Rollen"""
         count = obj.user_roles.count()
@@ -122,6 +131,85 @@ class UserAdmin(BaseUserAdmin):
             return f"✅ {count} Rolle(n)"
         return "❌ Keine Rollen"
     get_roles_count.short_description = 'Rollen'
+    
+    # Actions für Lexware-Integration
+    actions = ['sync_with_lexware', 'update_lexware_contacts']
+    
+    def sync_with_lexware(self, request, queryset):
+        """Erstellt Lexware-Kontakte für ausgewählte Benutzer ohne Kontakt"""
+        from .lexware_integration import get_lexware_client, LexwareAPIError
+        
+        users_without_contact = queryset.filter(lexware_contact_id__isnull=True)
+        
+        if not users_without_contact.exists():
+            self.message_user(request, "Alle ausgewählten Benutzer haben bereits einen Lexware-Kontakt.", 'warning')
+            return
+        
+        lexware = get_lexware_client()
+        success_count = 0
+        error_count = 0
+        
+        for user in users_without_contact:
+            try:
+                lexware.create_customer_contact(user)
+                success_count += 1
+            except (LexwareAPIError, Exception) as e:
+                error_count += 1
+                self.message_user(request, f"Fehler bei {user.email}: {str(e)}", 'error')
+        
+        if success_count > 0:
+            self.message_user(
+                request, 
+                f"✓ {success_count} Lexware-Kontakt(e) erfolgreich erstellt.", 
+                'success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"✗ {error_count} Fehler beim Erstellen von Kontakten.",
+                'error'
+            )
+    
+    sync_with_lexware.short_description = "🔗 Lexware-Kontakte für ausgewählte Benutzer erstellen"
+    
+    def update_lexware_contacts(self, request, queryset):
+        """Aktualisiert bestehende Lexware-Kontakte für ausgewählte Benutzer"""
+        from .lexware_integration import get_lexware_client, LexwareAPIError
+        
+        users_with_contact = queryset.filter(lexware_contact_id__isnull=False)
+        
+        if not users_with_contact.exists():
+            self.message_user(request, "Keiner der ausgewählten Benutzer hat einen Lexware-Kontakt.", 'warning')
+            return
+        
+        lexware = get_lexware_client()
+        success_count = 0
+        error_count = 0
+        
+        for user in users_with_contact:
+            try:
+                lexware.update_customer_contact(user)
+                success_count += 1
+            except (LexwareAPIError, Exception) as e:
+                error_count += 1
+                self.message_user(request, f"Fehler bei {user.email}: {str(e)}", 'error')
+        
+        if success_count > 0:
+            self.message_user(
+                request,
+                f"✓ {success_count} Lexware-Kontakt(e) erfolgreich aktualisiert.",
+                'success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"✗ {error_count} Fehler beim Aktualisieren von Kontakten.",
+                'error'
+            )
+    
+    update_lexware_contacts.short_description = "🔄 Lexware-Kontakte für ausgewählte Benutzer aktualisieren"
     
     # Entferne Django's default groups und permissions
     def get_form(self, request, obj=None, **kwargs):

@@ -34,6 +34,9 @@ pyotp==2.9.0
 qrcode==8.0
 Pillow==10.2.0
 
+# HTTP Requests (für Lexware API Integration)
+requests==2.31.0
+
 # Redis for caching/sessions (Optional)
 # redis==5.0.1
 # django-redis==5.4.0

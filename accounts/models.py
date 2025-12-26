@@ -61,6 +61,21 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_of_birth = models.DateField(null=True, blank=True, verbose_name='Geburtsdatum')
     company = models.CharField(max_length=255, blank=True, verbose_name='Firma')
     
+    # Lexware Integration
+    lexware_contact_id = models.UUIDField(
+        null=True, 
+        blank=True, 
+        verbose_name='Lexware Kontakt-ID',
+        help_text='UUID des Kontakts in Lexware'
+    )
+    lexware_customer_number = models.IntegerField(
+        null=True, 
+        blank=True, 
+        unique=True,
+        verbose_name='Lexware Kundennummer',
+        help_text='Eindeutige Kundennummer aus Lexware'
+    )
+    
     # Profile Completion
     profile_completed = models.BooleanField(default=False, verbose_name='Profil vollständig')
     

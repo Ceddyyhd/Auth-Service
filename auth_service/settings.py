@@ -271,6 +271,12 @@ PASSWORD_RESET_URL = config('PASSWORD_RESET_URL', default='http://localhost:8000
 EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS = config('EMAIL_VERIFICATION_TOKEN_EXPIRY_HOURS', default=24, cast=int)
 PASSWORD_RESET_TOKEN_EXPIRY_HOURS = config('PASSWORD_RESET_TOKEN_EXPIRY_HOURS', default=1, cast=int)
 
+# ===========================
+# LEXWARE API INTEGRATION
+# ===========================
+LEXWARE_API_KEY = config('LEXWARE_API_KEY', default=None)
+LEXWARE_AUTO_CREATE = config('LEXWARE_AUTO_CREATE', default=True, cast=bool)
+
 # Security Settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True

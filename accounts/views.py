@@ -134,7 +134,27 @@ class RegisterView(generics.CreateAPIView):
         except Exception as e:
             verification_sent = False
         
-        return Response({
+        # Erstelle Lexware-Kontakt (asynchron, ohne Registrierung zu blockieren)
+        lexware_customer_number = None
+        lexware_error = None
+        try:
+            from .lexware_integration import get_lexware_client, LexwareAPIError
+            lexware = get_lexware_client()
+            contact = lexware.create_customer_contact(user)
+            lexware_customer_number = user.lexware_customer_number
+        except LexwareAPIError as e:
+            # Logge Fehler, aber blockiere Registrierung nicht
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Fehler beim Erstellen des Lexware-Kontakts für {user.email}: {str(e)}")
+            lexware_error = "Lexware-Kontakt konnte nicht erstellt werden"
+        except Exception as e:
+            # Bei fehlender Konfiguration oder anderen Fehlern
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Lexware-Integration übersprungen für {user.email}: {str(e)}")
+        
+        response_data = {
             'user': UserSerializer(user).data,
             'tokens': {
                 'refresh': str(refresh),
@@ -142,7 +162,15 @@ class RegisterView(generics.CreateAPIView):
             },
             'message': 'Benutzer erfolgreich registriert.',
             'verification_email_sent': verification_sent
-        }, status=status.HTTP_201_CREATED)
+        }
+        
+        # Füge Lexware-Kundennummer hinzu wenn vorhanden
+        if lexware_customer_number:
+            response_data['lexware_customer_number'] = lexware_customer_number
+        if lexware_error:
+            response_data['lexware_warning'] = lexware_error
+        
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class LoginView(TokenObtainPairView):

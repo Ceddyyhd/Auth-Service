@@ -119,8 +119,10 @@ class UserSerializer(serializers.ModelSerializer):
                   'phone', 'full_name', 'street', 'street_number', 'city', 
                   'postal_code', 'country', 'date_of_birth', 'company',
                   'profile_completed', 'is_active', 'is_verified', 
-                  'date_joined', 'last_login')
-        read_only_fields = ('id', 'email', 'date_joined', 'last_login', 'is_verified')
+                  'date_joined', 'last_login',
+                  'lexware_contact_id', 'lexware_customer_number')
+        read_only_fields = ('id', 'email', 'date_joined', 'last_login', 'is_verified',
+                          'lexware_contact_id', 'lexware_customer_number')
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
