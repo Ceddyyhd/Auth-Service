@@ -8,6 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
+from .permissions import HasValidAPIKeyOrIsAuthenticated
 from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
@@ -32,7 +33,7 @@ class EnableMFAView(APIView):
     Enable MFA for the authenticated user.
     Generates a secret key and returns a QR code for scanning.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         user = request.user
@@ -116,7 +117,7 @@ class VerifyMFASetupView(APIView):
     Verify MFA setup by confirming a TOTP token.
     This activates MFA for the user.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         user = request.user
@@ -188,7 +189,7 @@ class DisableMFAView(APIView):
     Disable MFA for the authenticated user.
     Requires password confirmation and MFA token for security.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         user = request.user
@@ -242,7 +243,7 @@ class RegenerateBackupCodesView(APIView):
     Regenerate backup codes for the authenticated user.
     Old backup codes will be invalidated.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         user = request.user
@@ -283,7 +284,7 @@ class RegenerateBackupCodesView(APIView):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([HasValidAPIKeyOrIsAuthenticated])
 def get_mfa_status(request):
     """
     Get MFA status for the authenticated user.
@@ -308,7 +309,7 @@ def get_mfa_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([HasValidAPIKeyOrIsAuthenticated])
 def verify_mfa_token(request):
     """
     Verify an MFA token without changing any state.

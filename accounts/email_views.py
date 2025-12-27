@@ -20,6 +20,7 @@ from .email_utils import (
 )
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
+from .permissions import HasValidAPIKey, HasValidAPIKeyOrIsAuthenticated
 
 User = get_user_model()
 
@@ -54,7 +55,7 @@ class ResendVerificationEmailView(APIView):
         "email": "user@example.com"
     }
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def post(self, request):
         email = request.data.get('email')
@@ -137,7 +138,7 @@ class VerifyEmailView(APIView):
         "token": "verification_token"
     }
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def get(self, request):
         """Handle GET request from email link"""
@@ -374,7 +375,7 @@ class RequestPasswordResetView(APIView):
         "email": "user@example.com"
     }
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def post(self, request):
         email = request.data.get('email')
@@ -487,7 +488,7 @@ class ResetPasswordView(APIView):
         "new_password2": "NewPassword123!"
     }
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def get(self, request):
         """Show password reset form"""

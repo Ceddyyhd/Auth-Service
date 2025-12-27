@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 from accounts.models import Website, SocialAccount
+from .permissions import HasValidAPIKey, HasValidAPIKeyOrIsAuthenticated
 from accounts.serializers import (
     UserSerializer,
     SocialAccountSerializer,
@@ -92,7 +93,7 @@ class SocialLoginView(APIView):
         "access_token": "provider_access_token"
     }
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def post(self, request):
         provider = request.data.get('provider')
@@ -390,7 +391,7 @@ def unlink_social_account(request, provider):
 
 
 @api_view(['GET'])
-@permission_classes([permissions.AllowAny])
+@permission_classes([HasValidAPIKey])
 def get_website_required_fields(request, website_id):
     """
     Get required fields configuration for a website.

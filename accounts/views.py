@@ -20,6 +20,7 @@ from .serializers import (
     WebsiteCreateSerializer,
     UserSessionSerializer
 )
+from .permissions import HasValidAPIKey, HasValidAPIKeyOrIsAuthenticated, IsAdminOrHasValidAPIKey
 
 User = get_user_model()
 
@@ -99,10 +100,10 @@ class RegisterView(generics.CreateAPIView):
     - Immer: email, username, password, password_confirm, website_id
     - Je nach Website-Einstellung: first_name, last_name, phone, address, date_of_birth, company
     
-    **Berechtigung:** Keine (öffentlich)
+    **Berechtigung:** API-Key erforderlich (X-API-Key Header)
     """
     queryset = User.objects.all()
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     serializer_class = UserRegistrationSerializer
     
     def create(self, request, *args, **kwargs):
@@ -270,9 +271,9 @@ class LoginView(TokenObtainPairView):
     });
     ```
     
-    **Berechtigung:** Keine (öffentlich)
+    **Berechtigung:** API-Key erforderlich (X-API-Key Header)
     """
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = [HasValidAPIKey]
     
     def post(self, request, *args, **kwargs):
         from .models import MFADevice
@@ -405,9 +406,9 @@ class LogoutView(APIView):
     }
     ```
     
-    **Berechtigung:** Angemeldet sein (IsAuthenticated)
+    **Berechtigung:** Angemeldet sein (IsAuthenticated) oder API-Key
     """
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         try:
@@ -500,9 +501,9 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
     }
     ```
     
-    **Berechtigung:** Angemeldet sein (IsAuthenticated)
+    **Berechtigung:** Angemeldet sein (IsAuthenticated) oder API-Key
     """
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def get_object(self):
         return self.request.user
@@ -557,9 +558,9 @@ class ChangePasswordView(APIView):
     }
     ```
     
-    **Berechtigung:** Angemeldet sein (IsAuthenticated)
+    **Berechtigung:** Angemeldet sein (IsAuthenticated) oder API-Key
     """
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
@@ -592,7 +593,7 @@ class WebsiteListCreateView(generics.ListCreateAPIView):
     POST /api/accounts/websites/
     """
     queryset = Website.objects.all()
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = [IsAdminOrHasValidAPIKey]
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -610,7 +611,7 @@ class WebsiteDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
     queryset = Website.objects.all()
     serializer_class = WebsiteSerializer
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = [IsAdminOrHasValidAPIKey]
 
 
 @extend_schema(
@@ -651,9 +652,9 @@ class UserWebsiteAccessView(APIView):
     }
     ```
     
-    **Berechtigung:** Admin (IsAdminUser)
+    **Berechtigung:** Admin (IsAdminUser) oder API-Key
     """
-    permission_classes = (permissions.IsAdminUser,)
+    permission_classes = [IsAdminOrHasValidAPIKey]
     
     def post(self, request, user_id):
         """Grant user access to a website."""
@@ -716,7 +717,7 @@ class UserWebsiteAccessView(APIView):
     description='Verifiziert, ob der Benutzer Zugriff auf eine bestimmte Website hat.'
 )
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([HasValidAPIKeyOrIsAuthenticated])
 def verify_access(request):
     """
     Verify if user has access to a specific website.
@@ -768,7 +769,7 @@ class UserSessionListView(generics.ListAPIView):
     GET /api/accounts/sessions/
     """
     serializer_class = UserSessionSerializer
-    permission_classes = (permissions.IsAuthenticated,)
+    permission_classes = [HasValidAPIKeyOrIsAuthenticated]
     
     def get_queryset(self):
         if self.request.user.is_staff:

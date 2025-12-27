@@ -13,6 +13,7 @@ from datetime import timedelta
 from rest_framework_simplejwt.tokens import RefreshToken
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
+from .permissions import HasValidAPIKey, HasValidAPIKeyOrIsAuthenticated
 import secrets
 
 from .models import SSOToken, Website
@@ -69,7 +70,7 @@ User = get_user_model()
     description='Initiiert SSO-Flow für eine Website. Prüft ob Benutzer angemeldet ist und gibt SSO-Token zurück oder Login-URL.'
 )
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([HasValidAPIKey])
 def initiate_sso(request):
     """
     Initiate SSO flow for a website.
@@ -175,7 +176,7 @@ def initiate_sso(request):
     description='Tauscht SSO-Token gegen JWT-Tokens aus. Wird von der Website aufgerufen nachdem SSO-Token empfangen wurde.'
 )
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([HasValidAPIKey])
 def exchange_sso_token(request):
     """
     Exchange SSO token for JWT tokens.
@@ -261,7 +262,7 @@ def exchange_sso_token(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([HasValidAPIKey])
 def check_sso_status(request):
     """
     Check if user has an active SSO session.
@@ -308,7 +309,7 @@ def check_sso_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([HasValidAPIKey])
 def sso_login_callback(request):
     """
     Handle SSO login callback after user logs in.
@@ -378,7 +379,7 @@ def sso_login_callback(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([HasValidAPIKey])
 def sso_logout(request):
     """
     SSO Logout - logs user out from all websites.
