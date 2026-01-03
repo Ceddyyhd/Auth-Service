@@ -368,29 +368,35 @@ class LoginView(TokenObtainPairView):
         
         # Grant website access and create session (if API-Key was used)
         if hasattr(request, 'website'):
-            # Gewähre automatisch Zugriff auf Website, wenn auto_register_users aktiv ist
-            if request.website.auto_register_users or user.has_website_access(request.website):
+            # Prüfe ob Website-Zugriff erforderlich ist
+            if request.website.require_website_access:
+                # Website verlangt expliziten Zugriff - prüfe Berechtigung
+                if request.website.auto_register_users or user.has_website_access(request.website):
+                    if not user.has_website_access(request.website):
+                        user.allowed_websites.add(request.website)
+                else:
+                    # User hat keinen Zugriff auf diese Website
+                    return Response({
+                        'error': 'Sie haben keinen Zugriff auf diese Website.',
+                        'website': request.website.name
+                    }, status=status.HTTP_403_FORBIDDEN)
+            else:
+                # Website erlaubt Login für alle - gewähre automatisch Zugriff
                 if not user.has_website_access(request.website):
                     user.allowed_websites.add(request.website)
-                
-                # Create or update session
-                expires_at = timezone.now() + timedelta(hours=24)
-                UserSession.objects.update_or_create(
-                    user=user,
-                    website=request.website,
-                    defaults={
-                        'ip_address': request.META.get('REMOTE_ADDR', ''),
-                        'user_agent': request.META.get('HTTP_USER_AGENT', ''),
-                        'expires_at': expires_at,
-                        'is_active': True
-                    }
-                )
-            else:
-                # User hat keinen Zugriff auf diese Website
-                return Response({
-                    'error': 'Sie haben keinen Zugriff auf diese Website.',
-                    'website': request.website.name
-                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Create or update session
+            expires_at = timezone.now() + timedelta(hours=24)
+            UserSession.objects.update_or_create(
+                user=user,
+                website=request.website,
+                defaults={
+                    'ip_address': request.META.get('REMOTE_ADDR', ''),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                    'expires_at': expires_at,
+                    'is_active': True
+                }
+            )
         
         return Response({
             'refresh': str(refresh),

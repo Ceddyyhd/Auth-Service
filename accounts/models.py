@@ -224,6 +224,11 @@ class Website(models.Model):
         verbose_name='Automatische Benutzerregistrierung',
         help_text='Erlaubt neuen Benutzern automatischen Zugang zu dieser Website'
     )
+    require_website_access = models.BooleanField(
+        default=False,
+        verbose_name='Website-Zugriff erforderlich',
+        help_text='Wenn aktiv, können sich nur Benutzer mit expliziter Berechtigung anmelden. Wenn deaktiviert, kann sich jeder anmelden.'
+    )
     
     # Required Registration Fields
     require_first_name = models.BooleanField(default=False, verbose_name='Vorname erforderlich')
