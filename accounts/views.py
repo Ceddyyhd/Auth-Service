@@ -327,12 +327,17 @@ class LoginView(TokenObtainPairView):
             if not mfa_token:
                 # Generate temporary token for MFA verification
                 temp_token = secrets.token_urlsafe(32)
-                # Store temp token in session or cache (for simplicity, we'll use a short-lived approach)
-                # In production, use Redis or similar
-                request.session[f'mfa_temp_{temp_token}'] = {
-                    'user_id': str(user.id),
-                    'timestamp': timezone.now().isoformat()
-                }
+                
+                # Store temp token in cache instead of session (better for API requests)
+                from django.core.cache import cache
+                cache.set(
+                    f'mfa_temp_{temp_token}',
+                    {
+                        'user_id': str(user.id),
+                        'timestamp': timezone.now().isoformat()
+                    },
+                    timeout=300  # 5 minutes
+                )
                 
                 return Response({
                     'mfa_required': True,
