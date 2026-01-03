@@ -10,7 +10,7 @@ from datetime import timedelta
 import secrets
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
-from .models import Website, UserSession
+from .models import Website, UserSession, MFADevice
 from .serializers import (
     UserRegistrationSerializer,
     UserSerializer,
@@ -23,6 +23,10 @@ from .serializers import (
 from .permissions import HasValidAPIKey, HasValidAPIKeyOrIsAuthenticated, IsAdminOrHasValidAPIKey
 
 User = get_user_model()
+
+# Simple in-memory storage for MFA temporary tokens
+# In production, this could be replaced with Redis or database-backed cache
+_mfa_temp_tokens = {}
 
 
 class RegisterView(generics.CreateAPIView):
@@ -298,8 +302,6 @@ class LoginView(TokenObtainPairView):
     permission_classes = [HasValidAPIKey]
     
     def post(self, request, *args, **kwargs):
-        from .models import MFADevice
-        
         # Get username/email and password
         username = request.data.get('username') or request.data.get('email')
         password = request.data.get('password')
@@ -328,16 +330,20 @@ class LoginView(TokenObtainPairView):
                 # Generate temporary token for MFA verification
                 temp_token = secrets.token_urlsafe(32)
                 
-                # Store temp token in cache instead of session (better for API requests)
-                from django.core.cache import cache
-                cache.set(
-                    f'mfa_temp_{temp_token}',
-                    {
-                        'user_id': str(user.id),
-                        'timestamp': timezone.now().isoformat()
-                    },
-                    timeout=300  # 5 minutes
-                )
+                # Store temp token (clean old tokens first)
+                global _mfa_temp_tokens
+                # Remove expired tokens (older than 5 minutes)
+                current_time = timezone.now()
+                _mfa_temp_tokens = {
+                    k: v for k, v in _mfa_temp_tokens.items()
+                    if (current_time - timezone.datetime.fromisoformat(v['timestamp'])).total_seconds() < 300
+                }
+                
+                # Store new token
+                _mfa_temp_tokens[f'mfa_temp_{temp_token}'] = {
+                    'user_id': str(user.id),
+                    'timestamp': timezone.now().isoformat()
+                }
                 
                 return Response({
                     'mfa_required': True,
