@@ -107,7 +107,15 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
     
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Füge website_id hinzu, wenn API-Key verwendet wird
+        if hasattr(request, 'website') and 'website_id' not in request.data:
+            # Create a mutable copy of request data
+            data = request.data.copy()
+            data['website_id'] = str(request.website.id)
+            serializer = self.get_serializer(data=data)
+        else:
+            serializer = self.get_serializer(data=request.data)
+            
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         
@@ -169,6 +177,20 @@ class RegisterView(generics.CreateAPIView):
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"Lexware-Integration übersprungen für {user.email}: {str(e)}")
+        
+        # Create session for the website (if API-Key was used)
+        if hasattr(request, 'website'):
+            expires_at = timezone.now() + timedelta(hours=24)
+            UserSession.objects.update_or_create(
+                user=user,
+                website=request.website,
+                is_active=True,
+                defaults={
+                    'ip_address': request.META.get('REMOTE_ADDR', ''),
+                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                    'expires_at': expires_at
+                }
+            )
         
         response_data = {
             'user': UserSerializer(user).data,
@@ -332,6 +354,32 @@ class LoginView(TokenObtainPairView):
         # Generate JWT tokens
         from rest_framework_simplejwt.tokens import RefreshToken
         refresh = RefreshToken.for_user(user)
+        
+        # Grant website access and create session (if API-Key was used)
+        if hasattr(request, 'website'):
+            # Gewähre automatisch Zugriff auf Website, wenn auto_register_users aktiv ist
+            if request.website.auto_register_users or user.has_website_access(request.website):
+                if not user.has_website_access(request.website):
+                    user.allowed_websites.add(request.website)
+                
+                # Create or update session
+                expires_at = timezone.now() + timedelta(hours=24)
+                UserSession.objects.update_or_create(
+                    user=user,
+                    website=request.website,
+                    defaults={
+                        'ip_address': request.META.get('REMOTE_ADDR', ''),
+                        'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                        'expires_at': expires_at,
+                        'is_active': True
+                    }
+                )
+            else:
+                # User hat keinen Zugriff auf diese Website
+                return Response({
+                    'error': 'Sie haben keinen Zugriff auf diese Website.',
+                    'website': request.website.name
+                }, status=status.HTTP_403_FORBIDDEN)
         
         return Response({
             'refresh': str(refresh),
@@ -735,23 +783,31 @@ def verify_access(request):
             # Create or update session
             expires_at = timezone.now() + timedelta(hours=24)
             
-            session, created = UserSession.objects.get_or_create(
+            session, created = UserSession.objects.update_or_create(
                 user=request.user,
                 website=website,
-                is_active=True,
                 defaults={
                     'ip_address': request.META.get('REMOTE_ADDR', ''),
                     'user_agent': request.META.get('HTTP_USER_AGENT', ''),
-                    'expires_at': expires_at
+                    'expires_at': expires_at,
+                    'is_active': True
                 }
             )
             
+            # Update last_activity if not created
             if not created:
                 session.last_activity = timezone.now()
+                session.expires_at = expires_at  # Extend session
                 session.save()
+            
+            # Prüfe ob Session abgelaufen ist
+            session_valid = not session.is_expired()
+        else:
+            session_valid = False
         
         return Response({
             'has_access': has_access,
+            'session_valid': session_valid if has_access else False,
             'user': UserSerializer(request.user).data,
             'website': WebsiteSerializer(website).data
         }, status=status.HTTP_200_OK)
