@@ -47,7 +47,7 @@ class UserRoleSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = UserRole
-        fields = ('id', 'user', 'user_email', 'role', 'role_name', 
+        fields = ('id', 'user', 'user_email', 'role', 'role_name', 'scope',
                   'website', 'website_name', 'assigned_at', 
                   'assigned_by', 'assigned_by_email')
         read_only_fields = ('id', 'assigned_at', 'assigned_by')

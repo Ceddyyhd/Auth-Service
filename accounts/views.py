@@ -501,7 +501,7 @@ class LoginView(TokenObtainPairView):
                 role_permissions = role.permissions.all()
                 permission_codes = [perm.codename for perm in role_permissions]
                 
-                if role.scope == 'global':
+                if user_role.scope == 'global':
                     # Globale Berechtigung - für alle Websites
                     permissions_data['global'].extend(permission_codes)
                 else:

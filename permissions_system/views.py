@@ -299,18 +299,18 @@ class AssignRoleToUserView(APIView):
             if website_id:
                 website = Website.objects.get(id=website_id)
             
-            # Validate scope
-            if role.scope == 'local' and not website:
-                return Response({
-                    'error': 'Lokale Rollen benötigen eine Website.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+            # Determine scope based on whether website is provided
+            scope = 'local' if website else 'global'
             
             # Create or get the assignment
             user_role, created = UserRole.objects.get_or_create(
                 user=user,
                 role=role,
                 website=website,
-                defaults={'assigned_by': request.user}
+                defaults={
+                    'assigned_by': request.user,
+                    'scope': scope
+                }
             )
             
             if created:
