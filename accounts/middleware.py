@@ -4,8 +4,12 @@ Loggt alle API-Requests mit Details wie User, IP, Endpoint, Method, etc.
 """
 import json
 import time
+import traceback
 from django.utils.deprecation import MiddlewareMixin
 from django.contrib.auth import get_user_model
+from django.http import JsonResponse
+from django.conf import settings
+from rest_framework.exceptions import APIException
 from .models import APIRequestLog
 
 User = get_user_model()
@@ -182,6 +186,206 @@ class APIRequestLoggingMiddleware(MiddlewareMixin):
             if value:
                 # Präfix HTTP_ entfernen und lesbarer machen
                 clean_header = header.replace('HTTP_', '').replace('_', '-').lower()
+                safe_headers[clean_header] = value[:500] if isinstance(value, str) else str(value)[:500]
+        
+        # Remove sensitive headers
+        safe_headers = {}
+        for key, value in request.META.items():
+            if key.startswith('HTTP_'):
+                # Skip authorization headers
+                if 'AUTH' in key.upper() or 'TOKEN' in key.upper() or 'KEY' in key.upper():
+                    safe_headers[key] = '[REDACTED]'
+                else:
+                    safe_headers[key] = value[:500] if isinstance(value, str) else str(value)[:500]
+        
+        return safe_headers
+
+
+class APIExceptionHandlerMiddleware(MiddlewareMixin):
+    """
+    Middleware zum Abfangen aller Exceptions und Zurückgeben von JSON-Fehlern
+    mit detaillierten Beschreibungen und Nutzungshinweisen
+    """
+    
+    def process_exception(self, request, exception):
+        """
+        Fängt alle Exceptions ab und gibt JSON-Antworten zurück
+        """
+        # Nur für API-Requests
+        if not request.path.startswith('/api/'):
+            return None
+        
+        # Detaillierte Fehlerinformationen sammeln
+        error_data = self.build_error_response(request, exception)
+        
+        # Status Code bestimmen
+        status_code = getattr(exception, 'status_code', 500)
+        if isinstance(exception, APIException):
+            status_code = exception.status_code
+        
+        return JsonResponse(error_data, status=status_code, safe=False)
+    
+    def build_error_response(self, request, exception):
+        """
+        Erstellt eine detaillierte Fehlerantwort mit Nutzungshinweisen
+        """
+        error_type = type(exception).__name__
+        error_message = str(exception)
+        
+        # Basis-Fehlerstruktur
+        error_data = {
+            'error': True,
+            'error_type': error_type,
+            'message': error_message,
+            'endpoint': request.path,
+            'method': request.method,
+        }
+        
+        # Füge Stack Trace hinzu wenn DEBUG=True
+        if settings.DEBUG:
+            error_data['traceback'] = traceback.format_exc()
+        
+        # Spezifische Fehlertypen mit Nutzungshinweisen
+        error_data['usage_guide'] = self.get_usage_guide(request, exception)
+        
+        # Beispiel-Request hinzufügen
+        error_data['example'] = self.get_example_request(request)
+        
+        return error_data
+    
+    def get_usage_guide(self, request, exception):
+        """
+        Gibt spezifische Nutzungshinweise basierend auf dem Endpunkt zurück
+        """
+        path = request.path
+        
+        # Login Endpoint
+        if '/login/' in path:
+            return {
+                'description': 'Authentifiziert einen Benutzer und gibt JWT-Tokens zurück.',
+                'required_headers': {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'Ihr API-Schlüssel (aus Website-Registrierung)'
+                },
+                'required_fields': {
+                    'username': 'E-Mail oder Benutzername',
+                    'password': 'Passwort'
+                },
+                'optional_fields': {
+                    'mfa_token': '6-stelliger MFA-Code (nur wenn MFA aktiviert)'
+                },
+                'possible_errors': {
+                    '400': 'Username oder Password fehlt',
+                    '401': 'Ungültige Anmeldedaten',
+                    '403': 'Kein Zugriff auf diese Website',
+                    '500': 'Interner Serverfehler - prüfen Sie API-Key'
+                }
+            }
+        
+        # Register Endpoint
+        elif '/register/' in path:
+            return {
+                'description': 'Erstellt einen neuen Benutzer-Account.',
+                'required_headers': {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'Ihr API-Schlüssel'
+                },
+                'required_fields': {
+                    'email': 'E-Mail-Adresse',
+                    'username': 'Benutzername',
+                    'password': 'Passwort',
+                    'password_confirm': 'Passwortbestätigung'
+                },
+                'note': 'Weitere Pflichtfelder abhängig von Website-Einstellungen'
+            }
+        
+        # Profile Endpoint
+        elif '/profile/' in path:
+            return {
+                'description': 'Ruft Benutzerprofil ab oder aktualisiert es.',
+                'required_headers': {
+                    'Authorization': 'Bearer <access_token>'
+                },
+                'note': 'Token aus Login-Response verwenden'
+            }
+        
+        # Permissions Endpoint
+        elif '/permissions/' in path:
+            return {
+                'description': 'Prüft Berechtigungen für einen Benutzer.',
+                'required_headers': {
+                    'Authorization': 'Bearer <access_token>',
+                    'X-API-Key': 'Ihr API-Schlüssel'
+                },
+                'note': 'Siehe PERMISSIONS_GUIDE.md für Details'
+            }
+        
+        # Allgemeine API-Nutzung
+        return {
+            'description': 'Allgemeiner API-Endpunkt',
+            'common_headers': {
+                'Content-Type': 'application/json',
+                'X-API-Key': 'API-Schlüssel (für die meisten Endpunkte)',
+                'Authorization': 'Bearer <token> (für authentifizierte Endpunkte)'
+            },
+            'documentation': 'Siehe API_ENDPOINTS_COMPLETE.md für vollständige Dokumentation'
+        }
+    
+    def get_example_request(self, request):
+        """
+        Gibt ein Beispiel-Request für den aktuellen Endpunkt zurück
+        """
+        path = request.path
+        method = request.method
+        
+        # Login Beispiel
+        if '/login/' in path and method == 'POST':
+            return {
+                'curl': (
+                    'curl -X POST https://auth.palmdynamicx.de/api/accounts/login/ \\\n'
+                    '  -H "Content-Type: application/json" \\\n'
+                    '  -H "X-API-Key: YOUR_API_KEY" \\\n'
+                    '  -d \'{"username": "user@example.com", "password": "SecurePass123!"}\''
+                ),
+                'javascript': (
+                    'const response = await fetch("https://auth.palmdynamicx.de/api/accounts/login/", {\n'
+                    '  method: "POST",\n'
+                    '  headers: {\n'
+                    '    "Content-Type": "application/json",\n'
+                    '    "X-API-Key": "YOUR_API_KEY"\n'
+                    '  },\n'
+                    '  body: JSON.stringify({\n'
+                    '    username: "user@example.com",\n'
+                    '    password: "SecurePass123!"\n'
+                    '  })\n'
+                '});'
+                )
+            }
+        
+        # Register Beispiel
+        elif '/register/' in path and method == 'POST':
+            return {
+                'curl': (
+                    'curl -X POST https://auth.palmdynamicx.de/api/accounts/register/ \\\n'
+                    '  -H "Content-Type: application/json" \\\n'
+                    '  -H "X-API-Key: YOUR_API_KEY" \\\n'
+                    '  -d \'{"email": "new@example.com", "username": "newuser", '
+                    '"password": "SecurePass123!", "password_confirm": "SecurePass123!"}\''
+                )
+            }
+        
+        # Profile Beispiel
+        elif '/profile/' in path:
+            return {
+                'curl': (
+                    f'curl -X {method} https://auth.palmdynamicx.de/api/accounts/profile/ \\\n'
+                    '  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"'
+                )
+            }
+        
+        return {
+            'note': 'Siehe API-Dokumentation für Beispiele zu diesem Endpunkt'
+        }
                 safe_headers[clean_header] = value[:500]
         
         return safe_headers

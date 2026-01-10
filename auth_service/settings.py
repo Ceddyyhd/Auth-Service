@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'accounts.middleware.APIExceptionHandlerMiddleware',  # Global Exception Handler (muss früh sein!)
     'accounts.middleware.APIRequestLoggingMiddleware',  # API Request Logging
 ]
 

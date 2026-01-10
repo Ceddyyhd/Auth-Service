@@ -302,106 +302,189 @@ class LoginView(TokenObtainPairView):
     permission_classes = [HasValidAPIKey]
     
     def post(self, request, *args, **kwargs):
-        # Get username/email and password
-        username = request.data.get('username') or request.data.get('email')
-        password = request.data.get('password')
-        mfa_token = request.data.get('mfa_token')
-        
-        if not username or not password:
-            return Response({
-                'error': 'Username and password are required'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Authenticate user
-        from django.contrib.auth import authenticate
-        user = authenticate(request, username=username, password=password)
-        
-        if user is None:
-            return Response({
-                'detail': 'No active account found with the given credentials'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Check if MFA is enabled
         try:
-            mfa_device = MFADevice.objects.get(user=user, is_active=True)
-            
-            # MFA is enabled, check if token is provided
-            if not mfa_token:
-                # Generate temporary token for MFA verification
-                temp_token = secrets.token_urlsafe(32)
-                
-                # Store temp token (clean old tokens first)
-                global _mfa_temp_tokens
-                # Remove expired tokens (older than 5 minutes)
-                current_time = timezone.now()
-                _mfa_temp_tokens = {
-                    k: v for k, v in _mfa_temp_tokens.items()
-                    if (current_time - timezone.datetime.fromisoformat(v['timestamp'])).total_seconds() < 300
-                }
-                
-                # Store new token
-                _mfa_temp_tokens[f'mfa_temp_{temp_token}'] = {
-                    'user_id': str(user.id),
-                    'timestamp': timezone.now().isoformat()
-                }
-                
+            # Prüfe ob API-Key vorhanden ist
+            if not hasattr(request, 'website'):
                 return Response({
-                    'mfa_required': True,
-                    'temp_token': temp_token,
-                    'message': 'MFA verification required'
-                }, status=status.HTTP_200_OK)
-            
-            # MFA token provided, verify it
-            if not mfa_device.verify_token(mfa_token):
-                return Response({
-                    'error': 'Invalid MFA token'
+                    'error': True,
+                    'message': 'API-Key fehlt oder ist ungültig',
+                    'required_header': 'X-API-Key',
+                    'how_to_get': 'Registrieren Sie eine Website im Auth-Service Admin-Panel',
+                    'admin_url': 'https://auth.palmdynamicx.de/admin/',
+                    'example': {
+                        'curl': 'curl -H "X-API-Key: YOUR_API_KEY" ...',
+                        'javascript': 'headers: { "X-API-Key": "YOUR_API_KEY" }'
+                    }
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
-            # MFA verified, proceed with login
-        except MFADevice.DoesNotExist:
-            # No MFA enabled, proceed with normal login
-            pass
-        
-        # Generate JWT tokens
-        from rest_framework_simplejwt.tokens import RefreshToken
-        refresh = RefreshToken.for_user(user)
-        
-        # Grant website access and create session (if API-Key was used)
-        if hasattr(request, 'website'):
-            # Prüfe ob Website-Zugriff erforderlich ist
-            if request.website.require_website_access:
-                # Website verlangt expliziten Zugriff - prüfe Berechtigung
-                if request.website.auto_register_users or user.has_website_access(request.website):
+            # Get username/email and password
+            username = request.data.get('username') or request.data.get('email')
+            password = request.data.get('password')
+            mfa_token = request.data.get('mfa_token')
+            
+            if not username or not password:
+                missing = []
+                if not username:
+                    missing.append('username')
+                if not password:
+                    missing.append('password')
+                    
+                return Response({
+                    'error': True,
+                    'message': 'Username und Password sind erforderlich',
+                    'missing_fields': missing,
+                    'required_fields': {
+                        'username': 'E-Mail-Adresse oder Benutzername',
+                        'password': 'Passwort'
+                    },
+                    'optional_fields': {
+                        'mfa_token': '6-stelliger Code (nur wenn MFA aktiviert)'
+                    },
+                    'example': {
+                        'username': 'user@example.com',
+                        'password': 'YourPassword123!'
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Authenticate user
+            from django.contrib.auth import authenticate
+            user = authenticate(request, username=username, password=password)
+            
+            if user is None:
+                return Response({
+                    'error': True,
+                    'message': 'Ungültige Anmeldedaten',
+                    'details': 'Kein aktiver Account mit diesen Zugangsdaten gefunden',
+                    'possible_reasons': [
+                        'E-Mail oder Passwort ist falsch',
+                        'Account existiert nicht',
+                        'Account wurde deaktiviert',
+                        'E-Mail wurde noch nicht verifiziert (prüfen Sie Ihr Postfach)'
+                    ],
+                    'next_steps': [
+                        'Überprüfen Sie Ihre Eingaben',
+                        'Passwort vergessen? Nutzen Sie /api/accounts/password-reset/request/',
+                        'Noch kein Account? Registrieren Sie sich unter /api/accounts/register/'
+                    ]
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if MFA is enabled
+            try:
+                mfa_device = MFADevice.objects.get(user=user, is_active=True)
+                
+                # MFA is enabled, check if token is provided
+                if not mfa_token:
+                    # Generate temporary token for MFA verification
+                    temp_token = secrets.token_urlsafe(32)
+                    
+                    # Store temp token (clean old tokens first)
+                    global _mfa_temp_tokens
+                    # Remove expired tokens (older than 5 minutes)
+                    current_time = timezone.now()
+                    _mfa_temp_tokens = {
+                        k: v for k, v in _mfa_temp_tokens.items()
+                        if (current_time - timezone.datetime.fromisoformat(v['timestamp'])).total_seconds() < 300
+                    }
+                    
+                    # Store new token
+                    _mfa_temp_tokens[f'mfa_temp_{temp_token}'] = {
+                        'user_id': str(user.id),
+                        'timestamp': timezone.now().isoformat()
+                    }
+                    
+                    return Response({
+                        'mfa_required': True,
+                        'temp_token': temp_token,
+                        'message': 'MFA verification required'
+                    }, status=status.HTTP_200_OK)
+                
+                # MFA token provided, verify it
+                if not mfa_device.verify_token(mfa_token):
+                    return Response({
+                        'error': True,
+                        'message': 'Ungültiger MFA-Code',
+                        'details': 'Der eingegebene 6-stellige Code ist falsch oder abgelaufen',
+                        'mfa_type': 'TOTP (Time-based One-Time Password)',
+                        'hints': [
+                            'Codes ändern sich alle 30 Sekunden',
+                            'Stellen Sie sicher, dass die Zeit auf Ihrem Gerät korrekt ist',
+                            'Nutzen Sie einen aktuellen Code aus Ihrer Authenticator-App'
+                        ],
+                        'backup_codes': 'Falls Sie keinen Zugriff auf Ihr Gerät haben, nutzen Sie einen Backup-Code'
+                    }, status=status.HTTP_401_UNAUTHORIZED)
+                
+                # MFA verified, proceed with login
+            except MFADevice.DoesNotExist:
+                # No MFA enabled, proceed with normal login
+                pass
+            except Exception as e:
+                # Fange alle anderen Fehler ab
+                from django.conf import settings
+                return Response({
+                    'error': True,
+                    'message': 'Ein Fehler ist aufgetreten',
+                    'details': str(e) if settings.DEBUG else 'Interner Serverfehler',
+                    'contact': 'Kontaktieren Sie den Support, falls das Problem weiterhin besteht'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            # Generate JWT tokens
+            from rest_framework_simplejwt.tokens import RefreshToken
+            refresh = RefreshToken.for_user(user)
+            
+            # Grant website access and create session (if API-Key was used)
+            if hasattr(request, 'website'):
+                # Prüfe ob Website-Zugriff erforderlich ist
+                if request.website.require_website_access:
+                    # Website verlangt expliziten Zugriff - prüfe Berechtigung
+                    if request.website.auto_register_users or user.has_website_access(request.website):
+                        if not user.has_website_access(request.website):
+                            user.allowed_websites.add(request.website)
+                    else:
+                        # User hat keinen Zugriff auf diese Website
+                        return Response({
+                            'error': True,
+                            'message': 'Zugriff verweigert',
+                            'details': f'Sie haben keinen Zugriff auf die Website "{request.website.name}"',
+                            'website': {
+                                'name': request.website.name,
+                                'id': str(request.website.id),
+                                'require_access': request.website.require_website_access
+                            },
+                            'reason': 'Website erfordert explizite Zugriffsberechtigung',
+                            'solution': 'Kontaktieren Sie den Website-Administrator für Zugriff'
+                        }, status=status.HTTP_403_FORBIDDEN)
+                else:
+                    # Website erlaubt Login für alle - gewähre automatisch Zugriff
                     if not user.has_website_access(request.website):
                         user.allowed_websites.add(request.website)
-                else:
-                    # User hat keinen Zugriff auf diese Website
-                    return Response({
-                        'error': 'Sie haben keinen Zugriff auf diese Website.',
-                        'website': request.website.name
-                    }, status=status.HTTP_403_FORBIDDEN)
-            else:
-                # Website erlaubt Login für alle - gewähre automatisch Zugriff
-                if not user.has_website_access(request.website):
-                    user.allowed_websites.add(request.website)
+                
+                # Create or update session
+                expires_at = timezone.now() + timedelta(hours=24)
+                UserSession.objects.update_or_create(
+                    user=user,
+                    website=request.website,
+                    defaults={
+                        'ip_address': request.META.get('REMOTE_ADDR', ''),
+                        'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                        'expires_at': expires_at,
+                        'is_active': True
+                    }
+                )
             
-            # Create or update session
-            expires_at = timezone.now() + timedelta(hours=24)
-            UserSession.objects.update_or_create(
-                user=user,
-                website=request.website,
-                defaults={
-                    'ip_address': request.META.get('REMOTE_ADDR', ''),
-                    'user_agent': request.META.get('HTTP_USER_AGENT', ''),
-                    'expires_at': expires_at,
-                    'is_active': True
-                }
-            )
-        
-        return Response({
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_200_OK)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            # Allgemeiner Fehler-Handler
+            from django.conf import settings
+            return Response({
+                'error': True,
+                'message': 'Ein Fehler ist aufgetreten',
+                'details': str(e) if settings.DEBUG else 'Interner Serverfehler',
+                'contact': 'Kontaktieren Sie den Support, falls das Problem weiterhin besteht'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(
