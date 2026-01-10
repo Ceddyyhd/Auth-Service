@@ -460,12 +460,24 @@ class LoginView(TokenObtainPairView):
                 
                 # Create or update session
                 expires_at = timezone.now() + timedelta(hours=24)
+                
+                # IP-Adresse ermitteln (mit Fallback für Proxy/Load Balancer)
+                x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+                if x_forwarded_for:
+                    ip_address = x_forwarded_for.split(',')[0].strip()
+                else:
+                    ip_address = request.META.get('REMOTE_ADDR', '0.0.0.0')
+                
+                # Sicherstellen, dass IP nicht leer ist
+                if not ip_address or ip_address == '':
+                    ip_address = '0.0.0.0'
+                
                 UserSession.objects.update_or_create(
                     user=user,
                     website=request.website,
                     defaults={
-                        'ip_address': request.META.get('REMOTE_ADDR', ''),
-                        'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+                        'ip_address': ip_address,
+                        'user_agent': request.META.get('HTTP_USER_AGENT', 'Unknown')[:500],
                         'expires_at': expires_at,
                         'is_active': True
                     }
