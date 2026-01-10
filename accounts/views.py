@@ -483,9 +483,67 @@ class LoginView(TokenObtainPairView):
                     }
                 )
             
+            # Berechtigungen für den Benutzer abrufen
+            from permissions_system.models import UserRole, UserPermission
+            
+            permissions_data = {
+                'global': [],
+                'local': {}
+            }
+            
+            # Hole alle Rollen des Benutzers
+            user_roles = UserRole.objects.filter(user=user).select_related('role', 'website')
+            
+            for user_role in user_roles:
+                role = user_role.role
+                
+                # Hole alle Berechtigungen dieser Rolle
+                role_permissions = role.permissions.all()
+                permission_codes = [perm.codename for perm in role_permissions]
+                
+                if role.scope == 'global':
+                    # Globale Berechtigung - für alle Websites
+                    permissions_data['global'].extend(permission_codes)
+                else:
+                    # Lokale Berechtigung - nur für spezifische Website
+                    website_id = str(user_role.website.id) if user_role.website else None
+                    if website_id:
+                        if website_id not in permissions_data['local']:
+                            permissions_data['local'][website_id] = []
+                        permissions_data['local'][website_id].extend(permission_codes)
+            
+            # Entferne Duplikate
+            permissions_data['global'] = list(set(permissions_data['global']))
+            for website_id in permissions_data['local']:
+                permissions_data['local'][website_id] = list(set(permissions_data['local'][website_id]))
+            
+            # Hole direkte Berechtigungen (ohne Rolle)
+            direct_permissions = UserPermission.objects.filter(
+                user=user,
+                granted=True
+            ).select_related('permission', 'website')
+            
+            direct_perms_list = []
+            for user_perm in direct_permissions:
+                perm_data = {
+                    'permission': user_perm.permission.codename,
+                    'website_id': str(user_perm.website.id) if user_perm.website else None,
+                    'expires_at': user_perm.expires_at.isoformat() if user_perm.expires_at else None
+                }
+                direct_perms_list.append(perm_data)
+            
             return Response({
                 'refresh': str(refresh),
                 'access': str(refresh.access_token),
+                'user': {
+                    'id': str(user.id),
+                    'email': user.email,
+                    'username': user.username,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                },
+                'permissions': permissions_data,
+                'direct_permissions': direct_perms_list
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
