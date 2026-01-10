@@ -477,14 +477,99 @@ class LoginView(TokenObtainPairView):
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
-            # Allgemeiner Fehler-Handler
+            # Detaillierte Fehlerbehandlung mit Stack Trace und Nutzungshinweisen
             from django.conf import settings
-            return Response({
+            import traceback
+            
+            error_type = type(e).__name__
+            error_message = str(e)
+            
+            # Basis-Fehlerstruktur
+            error_response = {
                 'error': True,
-                'message': 'Ein Fehler ist aufgetreten',
-                'details': str(e) if settings.DEBUG else 'Interner Serverfehler',
-                'contact': 'Kontaktieren Sie den Support, falls das Problem weiterhin besteht'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'error_type': error_type,
+                'message': error_message if error_message else 'Ein unbekannter Fehler ist aufgetreten',
+                'endpoint': '/api/accounts/login/',
+                'method': 'POST',
+            }
+            
+            # Füge Stack Trace hinzu wenn DEBUG=True
+            if settings.DEBUG:
+                error_response['traceback'] = traceback.format_exc()
+                error_response['request_data'] = {
+                    'has_username': bool(request.data.get('username') or request.data.get('email')),
+                    'has_password': bool(request.data.get('password')),
+                    'has_mfa_token': bool(request.data.get('mfa_token')),
+                    'has_api_key': hasattr(request, 'website'),
+                    'website': request.website.name if hasattr(request, 'website') else None
+                }
+            
+            # Nutzungshinweise für Login
+            error_response['usage_guide'] = {
+                'description': 'Authentifiziert einen Benutzer und gibt JWT-Tokens zurück.',
+                'required_headers': {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': 'Ihr API-Schlüssel (aus Website-Registrierung)'
+                },
+                'required_fields': {
+                    'username': 'E-Mail oder Benutzername',
+                    'password': 'Passwort'
+                },
+                'optional_fields': {
+                    'mfa_token': '6-stelliger MFA-Code (nur wenn MFA aktiviert)'
+                },
+                'possible_errors': {
+                    '400': 'Username oder Password fehlt',
+                    '401': 'Ungültige Anmeldedaten oder MFA-Code falsch',
+                    '403': 'Kein Zugriff auf diese Website',
+                    '500': 'Interner Serverfehler (siehe traceback wenn DEBUG=True)'
+                }
+            }
+            
+            # Beispiel-Requests
+            error_response['examples'] = {
+                'curl': (
+                    'curl -X POST https://auth.palmdynamicx.de/api/accounts/login/ \\\n'
+                    '  -H "Content-Type: application/json" \\\n'
+                    '  -H "X-API-Key: YOUR_API_KEY" \\\n'
+                    '  -d \'{"username": "user@example.com", "password": "SecurePass123!"}\''
+                ),
+                'javascript': (
+                    'const response = await fetch("https://auth.palmdynamicx.de/api/accounts/login/", {\n'
+                    '  method: "POST",\n'
+                    '  headers: {\n'
+                    '    "Content-Type": "application/json",\n'
+                    '    "X-API-Key": "YOUR_API_KEY"\n'
+                    '  },\n'
+                    '  body: JSON.stringify({\n'
+                    '    username: "user@example.com",\n'
+                    '    password: "SecurePass123!"\n'
+                    '  })\n'
+                    '});'
+                ),
+                'python': (
+                    'import requests\n\n'
+                    'response = requests.post(\n'
+                    '    "https://auth.palmdynamicx.de/api/accounts/login/",\n'
+                    '    headers={\n'
+                    '        "Content-Type": "application/json",\n'
+                    '        "X-API-Key": "YOUR_API_KEY"\n'
+                    '    },\n'
+                    '    json={\n'
+                    '        "username": "user@example.com",\n'
+                    '        "password": "SecurePass123!"\n'
+                    '    }\n'
+                    ')'
+                )
+            }
+            
+            # Dokumentation
+            error_response['documentation'] = {
+                'full_guide': 'Siehe API_ENDPOINTS_COMPLETE.md für vollständige Dokumentation',
+                'error_handling': 'Siehe ERROR_HANDLING.md für Error-Handling Best Practices'
+            }
+            
+            return Response(error_response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @extend_schema(
