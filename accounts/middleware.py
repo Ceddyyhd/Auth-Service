@@ -386,6 +386,3 @@ class APIExceptionHandlerMiddleware(MiddlewareMixin):
         return {
             'note': 'Siehe API-Dokumentation für Beispiele zu diesem Endpunkt'
         }
-                safe_headers[clean_header] = value[:500]
-        
-        return safe_headers
