@@ -42,6 +42,7 @@ from .sso_views import (
     check_sso_status,
     sso_login_callback,
     sso_logout,
+    auto_login_from_trusted_site,
 )
 
 app_name = 'accounts'
@@ -79,6 +80,7 @@ urlpatterns = [
     path('sso/status/', check_sso_status, name='sso_status'),
     path('sso/callback/', sso_login_callback, name='sso_callback'),
     path('sso/logout/', sso_logout, name='sso_logout'),
+    path('sso/auto-login/', auto_login_from_trusted_site, name='sso_auto_login'),
     
     # Social Login
     path('social-login/', SocialLoginView.as_view(), name='social_login'),

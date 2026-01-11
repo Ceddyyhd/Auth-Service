@@ -408,3 +408,108 @@ def sso_logout(request):
         'message': 'Successfully logged out from all websites',
         'redirect_url': return_url
     })
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name='user_email',
+            type=OpenApiTypes.EMAIL,
+            location=OpenApiParameter.QUERY,
+            description='Email des bereits authentifizierten Users',
+            required=True
+        ),
+        OpenApiParameter(
+            name='website_id',
+            type=OpenApiTypes.UUID,
+            location=OpenApiParameter.QUERY,
+            description='UUID der anfragenden Website (muss vertrauenswürdig sein)',
+            required=True
+        ),
+        OpenApiParameter(
+            name='return_url',
+            type=OpenApiTypes.URI,
+            location=OpenApiParameter.QUERY,
+            description='URL für Rückkehr nach Auto-Login (optional)',
+            required=False
+        )
+    ],
+    responses={
+        200: {'description': 'Auto-Login erfolgreich, Session erstellt'},
+        400: {'description': 'Fehlende Parameter'},
+        401: {'description': 'Ungültiger Benutzer oder keine Berechtigung'},
+        403: {'description': 'Website nicht vertrauenswürdig'}
+    },
+    description='Ermöglicht Auto-Login für bereits auf vertrauenswürdiger Website authentifizierte User. Erstellt Django Session für auth.palmdynamicx.de.'
+)
+@api_view(['GET'])
+@permission_classes([HasValidAPIKey])
+def auto_login_from_trusted_site(request):
+    """
+    Auto-Login for users already authenticated on a trusted website.
+    
+    This allows a user who is logged in on palmservers.de to be automatically
+    logged in on auth.palmdynamicx.de without re-entering credentials.
+    
+    SECURITY: Only works if the requesting website has a valid API key (trusted).
+    
+    Query Parameters:
+    - user_email: Email of the authenticated user
+    - website_id: UUID of the trusted website
+    - return_url: Optional URL to redirect to after login
+    
+    Creates a Django session for the user on auth.palmdynamicx.de
+    """
+    user_email = request.GET.get('user_email')
+    website_id = request.GET.get('website_id')
+    return_url = request.GET.get('return_url', '/admin/')
+    
+    if not user_email:
+        return Response({
+            'error': 'user_email is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    if not website_id:
+        return Response({
+            'error': 'website_id is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate website exists and is trusted
+    try:
+        website = Website.objects.get(id=website_id)
+    except Website.DoesNotExist:
+        return Response({
+            'error': 'Invalid website_id'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Find user by email
+    try:
+        user = User.objects.get(email=user_email)
+    except User.DoesNotExist:
+        return Response({
+            'error': 'User not found'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if user has access to this website
+    if not user.allowed_websites.filter(id=website_id).exists():
+        return Response({
+            'error': 'User does not have access to this website'
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    # Create Django session for the user (auto-login)
+    from django.contrib.auth import login
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    
+    # Log the auto-login
+    from .models import UserSession
+    UserSession.objects.create(
+        user=user,
+        website=website,
+        ip_address=request.META.get('REMOTE_ADDR'),
+        user_agent=request.META.get('HTTP_USER_AGENT', ''),
+        expires_at=timezone.now() + timedelta(days=7)
+    )
+    
+    # Redirect to return_url or admin
+    from django.shortcuts import redirect
+    return redirect(return_url)
