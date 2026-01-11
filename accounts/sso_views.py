@@ -138,8 +138,9 @@ def initiate_sso(request):
     else:
         # User not logged in, redirect to login
         # Store return_url and website_id for after login
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
-        login_url = f"{frontend_url}/login?website_id={website_id}&return_url={return_url}"
+        # Use Django admin login as SSO login page
+        base_url = request.build_absolute_uri('/admin/login/')
+        login_url = f"{base_url}?next=/api/accounts/sso/initiate/?website_id={website_id}&return_url={return_url}"
         
         return Response({
             'authenticated': False,
